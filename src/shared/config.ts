@@ -1,0 +1,56 @@
+function getEnv(key: string, fallback?: string): string {
+  const value = process.env[key] ?? fallback
+  if (value === undefined) {
+    throw new Error(`Missing required environment variable: ${key}`)
+  }
+  return value
+}
+
+function getEnvInt(key: string, fallback: number): number {
+  const raw = process.env[key]
+  if (raw === undefined) return fallback
+  const parsed = parseInt(raw, 10)
+  if (isNaN(parsed)) {
+    throw new Error(
+      `Environment variable ${key} must be an integer, got: ${raw}`,
+    )
+  }
+  return parsed
+}
+
+export function getEnvBool(key: string, fallback: boolean): boolean {
+  const raw = process.env[key]
+  if (raw === undefined) return fallback
+  return raw === 'true' || raw === '1'
+}
+
+export const config = {
+  port: getEnvInt('PORT', 3000),
+  host: getEnv('HOST', '0.0.0.0'),
+  nodeEnv: getEnv('NODE_ENV', 'development'),
+  logLevel: getEnv('LOG_LEVEL', 'info'),
+  isProduction: getEnv('NODE_ENV', 'development') === 'production',
+
+  databaseUrl: getEnv(
+    'DATABASE_URL',
+    'postgres://postgres:postgres@localhost:5432/crm',
+  ),
+  redisUrl: getEnv('REDIS_URL', 'redis://localhost:6379'),
+
+  sessionSecret: getEnv(
+    'SESSION_SECRET',
+    'dev-session-secret-change-in-production',
+  ),
+  sessionMaxAgeDays: getEnvInt('SESSION_MAX_AGE_DAYS', 30),
+
+  aiApiKey: getEnv('AI_API_KEY', ''),
+  aiModel: getEnv('AI_MODEL', 'gpt-4o-mini'),
+
+  storageDir: getEnv('STORAGE_DIR', './storage'),
+  corsOrigin: getEnv('CORS_ORIGIN', 'http://localhost:5173'),
+
+  pagination: {
+    defaultLimit: 25,
+    maxLimit: 100,
+  },
+} as const
