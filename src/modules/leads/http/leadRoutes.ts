@@ -1,23 +1,29 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
-import { authenticate } from '../../../shared/auth/authenticate.js'
-import { getDb } from '../../../shared/database/connection.js'
+import { authenticate } from '@/shared/auth/authenticate.js'
+import { requireRole } from '@/shared/auth/authorize.js'
 import {
-  NotFoundError,
-  ValidationError,
-} from '../../../shared/errors/AppError.js'
-import {
-  canTransitionLead,
-  getValidLeadTransitions,
-} from '../domain/LeadState.js'
-import { convertLead } from '../application/ConvertLead.js'
-import type { LeadRow } from '../infrastructure/PostgresLeadRepository.js'
+  encodeCursor,
+  decodeCursor,
+} from '@/shared/pagination/CursorEncoder.js'
+import { getValidLeadTransitions } from '@/modules/leads/domain/LeadState.js'
+import { NotFoundError } from '@/shared/errors/AppError.js'
+import type { LeadService } from '@/modules/leads/application/LeadService.js'
+import type { ConvertLeadFn } from '@/modules/leads/application/ConvertLead.js'
 
 const createLeadSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(1).max(255),
   lastName: z.string().min(1).max(255),
+  company: z.string().max(255).optional(),
+  source: z.string().max(255).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
+const updateLeadSchema = z.object({
+  email: z.string().email().optional(),
+  firstName: z.string().min(1).max(255).optional(),
+  lastName: z.string().min(1).max(255).optional(),
   company: z.string().max(255).optional(),
   source: z.string().max(255).optional(),
   notes: z.string().max(5000).optional(),
@@ -29,201 +35,186 @@ const convertLeadSchema = z.object({
   dealValue: z.number().positive().optional(),
 })
 
-async function findLead(id: string, organizationId: string): Promise<LeadRow> {
-  const row = await getDb()
-    .selectFrom('leads')
-    .where('id', '=', id)
-    .where('organization_id', '=', organizationId)
-    .where('deleted_at', 'is', null)
-    .executeTakeFirst()
-  if (!row) throw new NotFoundError('Lead', id)
-  return row as LeadRow
+function leadLinks(l: {
+  id: string
+  status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'DISQUALIFIED'
+}) {
+  const valid = getValidLeadTransitions(l.status)
+  return {
+    self: { href: `/api/v1/leads/${l.id}` },
+    qualify: valid.includes('QUALIFIED')
+      ? { href: `/api/v1/leads/${l.id}/qualify`, method: 'POST' as const }
+      : undefined,
+    convert: valid.includes('CONVERTED')
+      ? { href: `/api/v1/leads/${l.id}/convert`, method: 'POST' as const }
+      : undefined,
+  }
 }
 
-export async function leadRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', authenticate)
+export class LeadRoutes {
+  constructor(
+    private readonly service: LeadService,
+    private readonly convertLead: ConvertLeadFn,
+  ) {}
+  async register(app: FastifyInstance): Promise<void> {
+    app.addHook('preHandler', authenticate)
 
-  app.get(
-    '/api/v1/leads',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const orgId = request.auth!.organizationId
-      const rows = await getDb()
-        .selectFrom('leads')
-        .where('organization_id', '=', orgId)
-        .where('deleted_at', 'is', null)
-        .orderBy('created_at', 'desc')
-        .orderBy('id', 'desc')
-        .limit(26)
-        .execute()
+    app.get(
+      '/api/v1/leads',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const orgId = request.auth!.organizationId
+        const {
+          limit: rawLimit,
+          after,
+          status,
+        } = request.query as {
+          limit?: string
+          after?: string
+          status?: string
+        }
+        const limit = Math.min(Math.max(Number(rawLimit) || 25, 1), 100)
+        const cursor = after ? decodeCursor(after) : null
 
-      const leads = rows as LeadRow[]
-      const hasNextPage = leads.length > 25
-      const data = hasNextPage ? leads.slice(0, 25) : leads
-
-      return reply.send({
-        data: data.map((l) => ({
-          ...l,
-          _links: {
-            self: { href: `/api/v1/leads/${l.id}` },
-            qualify:
-              l.status === 'CONTACTED'
-                ? { href: `/api/v1/leads/${l.id}/qualify`, method: 'POST' }
-                : undefined,
-            convert:
-              l.status === 'QUALIFIED'
-                ? { href: `/api/v1/leads/${l.id}/convert`, method: 'POST' }
-                : undefined,
-          },
-        })),
-        pagination: {
-          limit: 25,
-          hasNextPage,
-          nextCursor: hasNextPage
+        const leads = await this.service.list(orgId, {
+          limit,
+          after: cursor
             ? Buffer.from(
-                JSON.stringify({
-                  createdAt: data[data.length - 1]!.created_at,
-                  id: data[data.length - 1]!.id,
-                }),
+                JSON.stringify({ createdAt: cursor.createdAt, id: cursor.id }),
               ).toString('base64url')
-            : null,
-        },
-      })
-    },
-  )
-
-  app.get(
-    '/api/v1/leads/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const lead = await findLead(id, request.auth!.organizationId)
-
-      const validTransitions = getValidLeadTransitions(lead.status)
-      return reply.send({
-        data: {
-          ...lead,
-          _links: {
-            self: { href: `/api/v1/leads/${lead.id}` },
-            qualify: validTransitions.includes('QUALIFIED')
-              ? { href: `/api/v1/leads/${lead.id}/qualify`, method: 'POST' }
-              : undefined,
-            convert: validTransitions.includes('CONVERTED')
-              ? { href: `/api/v1/leads/${lead.id}/convert`, method: 'POST' }
-              : undefined,
-          },
-        },
-      })
-    },
-  )
-
-  app.post(
-    '/api/v1/leads',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = createLeadSchema.parse(request.body)
-      const orgId = request.auth!.organizationId
-
-      const row = await getDb()
-        .insertInto('leads')
-        .values({
-          id: `ld_${nanoid(12)}`,
-          organization_id: orgId,
-          email: body.email,
-          firstName: body.firstName,
-          lastName: body.lastName,
-          company: body.company ?? null,
-          source: body.source ?? null,
-          notes: body.notes ?? null,
-          status: 'NEW',
-          version: 1,
-          created_at: new Date(),
-          updated_at: new Date(),
+            : undefined,
+          status,
         })
-        .returningAll()
-        .executeTakeFirstOrThrow()
 
-      const lead = row as LeadRow
-      return reply.status(201).send({
-        data: {
-          ...lead,
-          _links: {
-            self: { href: `/api/v1/leads/${lead.id}` },
-            qualify: {
-              href: `/api/v1/leads/${lead.id}/qualify`,
-              method: 'POST',
-            },
+        const hasNextPage = leads.length > limit
+        const data = hasNextPage ? leads.slice(0, limit) : leads
+
+        return reply.send({
+          data: data.map((l) => ({
+            ...l,
+            _links: leadLinks(l),
+          })),
+          pagination: {
+            limit,
+            hasNextPage,
+            nextCursor: hasNextPage
+              ? encodeCursor({
+                  createdAt: data[data.length - 1]!.created_at.toISOString(),
+                  id: data[data.length - 1]!.id,
+                })
+              : null,
           },
-        },
-      })
-    },
-  )
-
-  app.post(
-    '/api/v1/leads/:id/qualify',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const orgId = request.auth!.organizationId
-      const lead = await findLead(id, orgId)
-
-      if (!canTransitionLead(lead.status, 'QUALIFIED')) {
-        throw new ValidationError(
-          `Lead in status '${lead.status}' cannot be qualified`,
-        )
-      }
-
-      const row = await getDb()
-        .updateTable('leads')
-        .set({
-          status: 'QUALIFIED',
-          version: lead.version + 1,
-          updated_at: new Date(),
         })
-        .where('id', '=', id)
-        .where('organization_id', '=', orgId)
-        .where('version', '=', lead.version)
-        .returningAll()
-        .executeTakeFirst()
+      },
+    )
 
-      if (!row) {
-        throw new ValidationError(
-          'Conflict: lead was modified by another request',
-        )
-      }
-
-      return reply.send({
-        data: {
-          ...row,
-          _links: {
-            self: { href: `/api/v1/leads/${id}` },
-            convert: { href: `/api/v1/leads/${id}/convert`, method: 'POST' },
+    app.get(
+      '/api/v1/leads/:id',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const lead = await this.service.get(id, request.auth!.organizationId)
+        return reply.send({
+          data: {
+            ...lead,
+            _links: leadLinks(lead),
           },
-        },
-      })
-    },
-  )
+        })
+      },
+    )
 
-  app.post(
-    '/api/v1/leads/:id/convert',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const orgId = request.auth!.organizationId
-      const body = convertLeadSchema.parse(request.body)
+    app.post(
+      '/api/v1/leads',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = createLeadSchema.parse(request.body)
+        const lead = await this.service.create({
+          organizationId: request.auth!.organizationId,
+          ...body,
+        })
+        return reply.status(201).send({
+          data: {
+            ...lead,
+            _links: leadLinks(lead),
+          },
+        })
+      },
+    )
 
-      const result = await convertLead({
-        leadId: id,
-        organizationId: orgId,
-        companyName: body.companyName,
-        dealTitle: body.dealTitle,
-        dealValue: body.dealValue,
-      })
+    app.patch(
+      '/api/v1/leads/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const body = updateLeadSchema.parse(request.body)
+        const lead = await this.service.update({
+          leadId: id,
+          organizationId: request.auth!.organizationId,
+          ...body,
+        })
+        return reply.send({
+          data: {
+            ...lead,
+            _links: leadLinks(lead),
+          },
+        })
+      },
+    )
 
-      return reply.status(201).send({
-        data: result,
-        _links: {
-          lead: { href: `/api/v1/leads/${result.lead.id}` },
-          deal: { href: `/api/v1/deals/${result.deal.id}` },
-          company: { href: `/api/v1/companies/${result.company.id}` },
-          contact: { href: `/api/v1/contacts/${result.contact.id}` },
-        },
-      })
-    },
-  )
+    app.delete(
+      '/api/v1/leads/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        await this.service.remove(id, request.auth!.organizationId)
+        return reply.status(204).send()
+      },
+    )
+
+    app.post(
+      '/api/v1/leads/:id/qualify',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const lead = await this.service.qualify(
+          id,
+          request.auth!.organizationId,
+        )
+        if (!lead) throw new NotFoundError('Lead', id)
+        return reply.send({
+          data: {
+            ...lead,
+            _links: leadLinks(lead),
+          },
+        })
+      },
+    )
+
+    app.post(
+      '/api/v1/leads/:id/convert',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const orgId = request.auth!.organizationId
+        const body = convertLeadSchema.parse(request.body)
+
+        const result = await this.convertLead({
+          leadId: id,
+          organizationId: orgId,
+          actorId: request.auth!.userId,
+          companyName: body.companyName,
+          dealTitle: body.dealTitle,
+          dealValue: body.dealValue,
+        })
+
+        return reply.status(201).send({
+          data: result,
+          _links: {
+            lead: { href: `/api/v1/leads/${result.lead.id}` },
+            deal: { href: `/api/v1/deals/${result.deal.id}` },
+            company: { href: `/api/v1/companies/${result.company.id}` },
+            contact: { href: `/api/v1/contacts/${result.contact.id}` },
+          },
+        })
+      },
+    )
+  }
 }

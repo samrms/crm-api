@@ -1,7 +1,7 @@
-import { getDb } from '../database/connection.js'
-import { config } from '../config.js'
+import { getDb } from '@/shared/database/connection.js'
+import { config } from '@/shared/config.js'
 import { nanoid } from 'nanoid'
-import type { SessionsTable } from '../database/types.js'
+import type { SessionsTable } from '@/shared/database/types.js'
 
 export interface SessionData {
   sessionId: string

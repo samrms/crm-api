@@ -5,7 +5,6 @@ import { migrateUp } from './shared/database/migrate.js'
 import { logger } from './shared/logging/logger.js'
 
 async function start() {
-  // Run migrations
   await migrateUp()
 
   const app = await buildApp()
@@ -21,7 +20,6 @@ async function start() {
     process.exit(1)
   }
 
-  // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutting down...')
     await app.close()

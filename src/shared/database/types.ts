@@ -1,7 +1,3 @@
-// This file defines the Kysely database schema types.
-// It is the single source of truth for table structure.
-// Modules extend this via declaration merging or direct imports.
-
 export type Role = 'OWNER' | 'ADMIN' | 'MEMBER'
 
 export interface OrganizationsTable {
@@ -47,7 +43,6 @@ export interface Database {
   users: UsersTable
   memberships: MembershipsTable
   sessions: SessionsTable
-  // Tables added by modules below:
   companies: CompaniesTable
   contacts: ContactsTable
   leads: LeadsTable
@@ -58,11 +53,9 @@ export interface Database {
   outbox_events: OutboxEventsTable
   imports: ImportsTable
   exports: ExportsTable
-  jobs: JobsTable
   kysely_migrations: KyselyMigrationsTable
 }
 
-// CRM entities (added here to keep Database in one place)
 export interface CompaniesTable {
   id: string
   organization_id: string
@@ -208,25 +201,6 @@ export interface ExportsTable {
   error_message: string | null
   created_at: Date
   updated_at: Date
-}
-
-export interface JobsTable {
-  id: string
-  organization_id: string
-  actor_id: string
-  type: string
-  status:
-    'PENDING' | 'PROCESSING' | 'RETRYING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
-  attempts: number
-  max_attempts: number
-  available_at: Date
-  started_at: Date | null
-  completed_at: Date | null
-  failed_at: Date | null
-  last_error_code: string | null
-  last_error_message: string | null
-  payload: Record<string, unknown>
-  created_at: Date
 }
 
 export interface KyselyMigrationsTable {

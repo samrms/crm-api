@@ -1,4 +1,5 @@
-import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers'
+import type { StartedTestContainer } from 'testcontainers'
+import { GenericContainer, Wait } from 'testcontainers'
 import { Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 import type { Database } from '../../src/shared/database/types.js'

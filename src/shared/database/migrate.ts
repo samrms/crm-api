@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getDb } from './connection.js'
 import type { Database } from './types.js'
-import { logger } from '../logging/logger.js'
+import { logger } from '@/shared/logging/logger.js'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const MIGRATIONS_DIR = join(__dirname, 'migrations')
@@ -74,7 +74,6 @@ export async function migrateDown(db?: Kysely<Database>): Promise<void> {
   }
 }
 
-// CLI entry point
 if (process.argv[1] && process.argv[1].endsWith('migrate.ts')) {
   const command = process.argv[2]
   if (command === 'rollback') {

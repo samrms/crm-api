@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { findSession } from './session.js'
-import { UnauthorizedError } from '../errors/AppError.js'
+import { UnauthorizedError } from '@/shared/errors/AppError.js'
 
 export interface AuthContext {
   userId: string

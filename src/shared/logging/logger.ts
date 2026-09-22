@@ -1,5 +1,5 @@
 import pino from 'pino'
-import { config } from '../config.js'
+import { config } from '@/shared/config.js'
 
 export const logger = pino({
   level: config.logLevel,
@@ -15,9 +15,3 @@ export const logger = pino({
     res: pino.stdSerializers.res,
   },
 })
-
-export function createChildLogger(
-  binding: Record<string, unknown>,
-): pino.Logger {
-  return logger.child(binding)
-}

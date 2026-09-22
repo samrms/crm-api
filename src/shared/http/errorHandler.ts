@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { AppError } from '../errors/AppError.js'
-import { logger } from '../logging/logger.js'
+import { AppError } from '@/shared/errors/AppError.js'
+import { logger } from '@/shared/logging/logger.js'
 
 export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
   app.setErrorHandler(
@@ -11,7 +11,6 @@ export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
     ) => {
       const requestId = request.id
 
-      // Known application errors
       if (error instanceof AppError) {
         const payload: Record<string, unknown> = {
           error: {
@@ -21,12 +20,12 @@ export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
           },
         }
         if ('details' in error && error.details !== undefined) {
-          ;(payload.error as Record<string, unknown>).details = error.details
+          const body = payload.error as Record<string, unknown>
+          body.details = error.details
         }
         return reply.status(error.statusCode).send(payload)
       }
 
-      // Fastify validation errors (schema-based)
       if (error.validation) {
         return reply.status(400).send({
           error: {
@@ -38,7 +37,6 @@ export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
         })
       }
 
-      // Rate limit errors
       if (error.statusCode === 429) {
         return reply.status(429).send({
           error: {
@@ -49,7 +47,6 @@ export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
         })
       }
 
-      // Unexpected errors — never expose internals
       logger.error({ err: error, requestId }, 'Unhandled error')
 
       return reply.status(500).send({

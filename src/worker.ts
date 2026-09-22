@@ -1,24 +1,13 @@
-import { Queue, Worker, type Job } from 'bullmq'
+import { Worker, type Job } from 'bullmq'
 import { Redis } from 'ioredis'
 import { config } from './shared/config.js'
 import { logger } from './shared/logging/logger.js'
-import { closeDatabase } from './shared/database/connection.js'
+import { getDb, closeDatabase } from './shared/database/connection.js'
+import { PostgresImportRepository } from './modules/imports/infrastructure/PostgresImportRepository.js'
+import { PostgresExportRepository } from './modules/exports/infrastructure/PostgresExportRepository.js'
 
 const connection = new Redis(config.redisUrl, {
   maxRetriesPerRequest: null,
-})
-
-export const crmQueue = new Queue('crm-jobs', {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 1000,
-    },
-    removeOnComplete: { count: 100 },
-    removeOnFail: { count: 50 },
-  },
 })
 
 interface ImportJobData {
@@ -58,45 +47,29 @@ async function processImportJob(job: Job<ImportJobData>): Promise<void> {
   const { importId, organizationId, type } = job.data
   logger.info({ importId, organizationId, type }, 'Processing import')
 
-  const { getDb } = await import('./shared/database/connection.js')
-  const existing = await getDb()
-    .selectFrom('imports')
-    .where('id', '=', importId)
-    .executeTakeFirst()
+  const db = getDb()
+  const repo = new PostgresImportRepository(db)
 
-  if (existing && (existing as { status: string }).status === 'COMPLETED') {
+  const existing = await repo.findById(importId, organizationId)
+  if (existing && existing.status === 'COMPLETED') {
     logger.info({ importId }, 'Import already completed, skipping')
     return
   }
 
-  await getDb()
-    .updateTable('imports')
-    .set({ status: 'PROCESSING', updated_at: new Date() })
-    .where('id', '=', importId)
-    .execute()
+  await repo.updateStatus(importId, 'PROCESSING')
 
   try {
     await new Promise((resolve) => setTimeout(resolve, 1000))
-    await getDb()
-      .updateTable('imports')
-      .set({
-        status: 'COMPLETED',
-        total: 0,
-        processed: 0,
-        successful: 0,
-        failed: 0,
-        updated_at: new Date(),
-      })
-      .where('id', '=', importId)
-      .execute()
+    await repo.updateProgress(importId, {
+      processed: 0,
+      successful: 0,
+      failed: 0,
+    })
+    await repo.updateStatus(importId, 'COMPLETED')
     logger.info({ importId }, 'Import completed')
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
-    await getDb()
-      .updateTable('imports')
-      .set({ status: 'FAILED', error_message: msg, updated_at: new Date() })
-      .where('id', '=', importId)
-      .execute()
+    await repo.updateStatus(importId, 'FAILED', msg)
     throw error
   }
 }
@@ -105,32 +78,20 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
   const { exportId, organizationId, type } = job.data
   logger.info({ exportId, organizationId, type }, 'Processing export')
 
-  const { getDb } = await import('./shared/database/connection.js')
-  await getDb()
-    .updateTable('exports')
-    .set({ status: 'PROCESSING', updated_at: new Date() })
-    .where('id', '=', exportId)
-    .execute()
+  const db = getDb()
+  const repo = new PostgresExportRepository(db)
+
+  await repo.updateStatus(exportId, 'PROCESSING')
 
   try {
     await new Promise((resolve) => setTimeout(resolve, 1000))
-    await getDb()
-      .updateTable('exports')
-      .set({
-        status: 'COMPLETED',
-        file_path: `/storage/exports/${exportId}.csv`,
-        updated_at: new Date(),
-      })
-      .where('id', '=', exportId)
-      .execute()
+    await repo.updateStatus(exportId, 'COMPLETED', {
+      filePath: `/storage/exports/${exportId}.csv`,
+    })
     logger.info({ exportId }, 'Export completed')
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'
-    await getDb()
-      .updateTable('exports')
-      .set({ status: 'FAILED', error_message: msg, updated_at: new Date() })
-      .where('id', '=', exportId)
-      .execute()
+    await repo.updateStatus(exportId, 'FAILED', { errorMessage: msg })
     throw error
   }
 }

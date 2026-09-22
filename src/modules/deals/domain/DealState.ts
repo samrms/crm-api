@@ -1,4 +1,3 @@
-// Deal state machine — explicit valid transitions
 export type DealStage =
   'NEW' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'WON' | 'LOST'
 
@@ -7,8 +6,8 @@ const VALID_TRANSITIONS: Record<DealStage, DealStage[]> = {
   QUALIFIED: ['PROPOSAL'],
   PROPOSAL: ['NEGOTIATION'],
   NEGOTIATION: ['WON', 'LOST'],
-  WON: [], // terminal
-  LOST: [], // terminal
+  WON: [],
+  LOST: [],
 }
 
 export function canTransitionDeal(

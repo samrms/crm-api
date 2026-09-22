@@ -253,6 +253,8 @@ WHERE organization_id = $orgId AND deleted_at IS NULL
 | GET    | `/api/v1/imports/:id`        | Import status                  |
 | POST   | `/api/v1/exports`            | Create export (202)            |
 | GET    | `/api/v1/exports/:id`        | Export status + download URL   |
+| GET    | `/api/v1/organizations/:id`  | Get organization               |
+| PATCH  | `/api/v1/organizations/:id`  | Update organization (OWNER)    |
 | GET    | `/health`                    | Process alive                  |
 | GET    | `/ready`                     | Dependencies ready             |
 

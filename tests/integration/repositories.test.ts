@@ -46,7 +46,7 @@ describe('Integration: Database Repositories', () => {
   })
 
   describe('PostgresCompanyRepository', () => {
-    const repo = new PostgresCompanyRepository()
+    const repo = new PostgresCompanyRepository(getTestDb())
 
     it('creates and finds company', async () => {
       const created = await repo.create({
@@ -110,7 +110,7 @@ describe('Integration: Database Repositories', () => {
   })
 
   describe('PostgresContactRepository', () => {
-    const repo = new PostgresContactRepository()
+    const repo = new PostgresContactRepository(getTestDb())
     let companyId: string
 
     beforeEach(async () => {
@@ -185,7 +185,7 @@ describe('Integration: Database Repositories', () => {
   })
 
   describe('PostgresLeadRepository', () => {
-    const repo = new PostgresLeadRepository()
+    const repo = new PostgresLeadRepository(getTestDb())
 
     it('creates lead with default NEW status', async () => {
       const created = await repo.create({
@@ -232,7 +232,7 @@ describe('Integration: Database Repositories', () => {
   })
 
   describe('PostgresDealRepository', () => {
-    const repo = new PostgresDealRepository()
+    const repo = new PostgresDealRepository(getTestDb())
     let companyId: string
     let contactId: string
 

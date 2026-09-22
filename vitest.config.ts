@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config'
 
+const root = import.meta.dirname
+const mod = (name: string) => `${root}/src/modules/${name}`
+
 export default defineConfig({
   test: {
     globals: false,
@@ -7,15 +10,24 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    // Allow .ts files to be imported with .js extension
-    server: {
-      deps: {
-        inline: [],
-      },
-    },
   },
-  // Resolve .js to .ts for source files
   resolve: {
+    alias: {
+      '@': `${root}/src`,
+      '@shared': `${root}/src/shared`,
+      '@audit': mod('audit'),
+      '@users': mod('users'),
+      '@companies': mod('companies'),
+      '@contacts': mod('contacts'),
+      '@deals': mod('deals'),
+      '@exports': mod('exports'),
+      '@imports': mod('imports'),
+      '@leads': mod('leads'),
+      '@members': mod('members'),
+      '@organizations': mod('organizations'),
+      '@tasks': mod('tasks'),
+      '@modules': `${root}/src/modules`,
+    },
     extensions: ['.ts', '.js', '.json'],
   },
 })

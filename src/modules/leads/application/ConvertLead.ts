@@ -1,23 +1,21 @@
+import type { Kysely } from 'kysely'
 import { nanoid } from 'nanoid'
-import { getDb } from '../../../shared/database/connection.js'
-import { PostgresCompanyRepository } from '../../companies/infrastructure/PostgresCompanyRepository.js'
-import { PostgresContactRepository } from '../../contacts/infrastructure/PostgresContactRepository.js'
-import { PostgresDealRepository } from '../../deals/infrastructure/PostgresDealRepository.js'
-import { canTransitionLead } from '../domain/LeadState.js'
+import { PostgresCompanyRepository } from '@/modules/companies/infrastructure/PostgresCompanyRepository.js'
+import { PostgresContactRepository } from '@/modules/contacts/infrastructure/PostgresContactRepository.js'
+import { PostgresDealRepository } from '@/modules/deals/infrastructure/PostgresDealRepository.js'
+import { canTransitionLead } from '@/modules/leads/domain/LeadState.js'
 import {
   OptimisticLockError,
   ValidationError,
   NotFoundError,
-} from '../../../shared/errors/AppError.js'
-import type { LeadsTable } from '../../../shared/database/types.js'
-
-const companyRepo = new PostgresCompanyRepository()
-const contactRepo = new PostgresContactRepository()
-const dealRepo = new PostgresDealRepository()
+} from '@/shared/errors/AppError.js'
+import type { Database } from '@/shared/database/types.js'
+import type { LeadsTable } from '@/shared/database/types.js'
 
 export interface ConvertLeadInput {
   leadId: string
   organizationId: string
+  actorId: string
   companyName?: string
   dealTitle?: string
   dealValue?: number
@@ -30,15 +28,25 @@ export interface ConversionResult {
   deal: { id: string; title: string; stage: string }
 }
 
-export async function convertLead(
+export type ConvertLeadFn = (
   input: ConvertLeadInput,
-): Promise<ConversionResult> {
-  const { leadId, organizationId } = input
+) => Promise<ConversionResult>
 
-  const result = await getDb()
-    .transaction()
-    .execute(async (trx) => {
-      // 1. Find the lead (within transaction for consistency)
+export class ConvertLead {
+  constructor(private readonly db: Kysely<Database>) {}
+
+  toFn(): ConvertLeadFn {
+    return (input) => this.execute(input)
+  }
+
+  async execute(input: ConvertLeadInput): Promise<ConversionResult> {
+    const { leadId, organizationId } = input
+
+    return this.db.transaction().execute(async (trx) => {
+      const companyRepo = new PostgresCompanyRepository(trx)
+      const contactRepo = new PostgresContactRepository(trx)
+      const dealRepo = new PostgresDealRepository(trx)
+
       const leadRow = await trx
         .selectFrom('leads')
         .where('id', '=', leadId)
@@ -59,7 +67,6 @@ export async function convertLead(
         )
       }
 
-      // 2. Find or create Company
       const companyName =
         input.companyName ??
         lead.company ??
@@ -74,7 +81,6 @@ export async function convertLead(
         })
       }
 
-      // 3. Find or create Contact
       let contact = await contactRepo.findByEmailAndCompany(
         lead.email,
         company.id,
@@ -91,7 +97,6 @@ export async function convertLead(
         })
       }
 
-      // 4. Create Deal
       const dealTitle =
         input.dealTitle ?? `Deal from lead: ${lead.firstName} ${lead.lastName}`
       const deal = await dealRepo.create({
@@ -104,7 +109,6 @@ export async function convertLead(
         value: input.dealValue ?? undefined,
       })
 
-      // 5. Update Lead status -> CONVERTED
       const updatedLead = await trx
         .updateTable('leads')
         .set({
@@ -129,7 +133,6 @@ export async function convertLead(
         .where('organization_id', '=', organizationId)
         .execute()
 
-      // 6. Audit event
       await trx
         .insertInto('audit_events')
         .values({
@@ -149,7 +152,6 @@ export async function convertLead(
         })
         .execute()
 
-      // 7. Outbox event
       await trx
         .insertInto('outbox_events')
         .values({
@@ -173,6 +175,5 @@ export async function convertLead(
         deal: { id: deal.id, title: deal.title, stage: deal.stage },
       }
     })
-
-  return result
+  }
 }

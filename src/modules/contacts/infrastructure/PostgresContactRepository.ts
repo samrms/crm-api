@@ -1,5 +1,5 @@
-import { getDb } from '../../../shared/database/connection.js'
-import type { ContactsTable } from '../../../shared/database/types.js'
+import type { Kysely } from 'kysely'
+import type { ContactsTable, Database } from '@/shared/database/types.js'
 
 export type ContactRow = ContactsTable
 
@@ -27,15 +27,32 @@ export interface ContactRepository {
     lastName: string
     phone?: string
     title?: string
+    notes?: string
   }): Promise<ContactRow>
+  update(
+    id: string,
+    organizationId: string,
+    data: {
+      companyId?: string
+      email?: string
+      firstName?: string
+      lastName?: string
+      phone?: string
+      title?: string
+      notes?: string
+    },
+  ): Promise<ContactRow | undefined>
+  softDelete(id: string, organizationId: string): Promise<boolean>
 }
 
 export class PostgresContactRepository implements ContactRepository {
+  constructor(private readonly db: Kysely<Database>) {}
+
   async findById(
     id: string,
     organizationId: string,
   ): Promise<ContactRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('contacts')
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
@@ -48,7 +65,7 @@ export class PostgresContactRepository implements ContactRepository {
     email: string,
     organizationId: string,
   ): Promise<ContactRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('contacts')
       .where('email', '=', email)
       .where('organization_id', '=', organizationId)
@@ -62,7 +79,7 @@ export class PostgresContactRepository implements ContactRepository {
     companyId: string,
     organizationId: string,
   ): Promise<ContactRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('contacts')
       .where('email', '=', email)
       .where('company_id', '=', companyId)
@@ -76,7 +93,7 @@ export class PostgresContactRepository implements ContactRepository {
     organizationId: string,
     opts: { limit: number; after?: string },
   ): Promise<ContactRow[]> {
-    let query = getDb()
+    let query = this.db
       .selectFrom('contacts')
       .where('organization_id', '=', organizationId)
       .where('deleted_at', 'is', null)
@@ -109,9 +126,10 @@ export class PostgresContactRepository implements ContactRepository {
     lastName: string
     phone?: string
     title?: string
+    notes?: string
   }): Promise<ContactRow> {
     const now = new Date()
-    const row = await getDb()
+    const row = await this.db
       .insertInto('contacts')
       .values({
         id: data.id,
@@ -122,11 +140,48 @@ export class PostgresContactRepository implements ContactRepository {
         lastName: data.lastName,
         phone: data.phone ?? null,
         title: data.title ?? null,
+        notes: data.notes ?? null,
         created_at: now,
         updated_at: now,
       })
       .returningAll()
       .executeTakeFirstOrThrow()
     return row as ContactRow
+  }
+
+  async update(
+    id: string,
+    organizationId: string,
+    data: {
+      companyId?: string
+      email?: string
+      firstName?: string
+      lastName?: string
+      phone?: string
+      title?: string
+      notes?: string
+    },
+  ): Promise<ContactRow | undefined> {
+    const row = await this.db
+      .updateTable('contacts')
+      .set({ ...data, updated_at: new Date() })
+      .where('id', '=', id)
+      .where('organization_id', '=', organizationId)
+      .where('deleted_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst()
+    return row as ContactRow | undefined
+  }
+
+  async softDelete(id: string, organizationId: string): Promise<boolean> {
+    const row = await this.db
+      .updateTable('contacts')
+      .set({ deleted_at: new Date(), updated_at: new Date() })
+      .where('id', '=', id)
+      .where('organization_id', '=', organizationId)
+      .where('deleted_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst()
+    return !!row
   }
 }

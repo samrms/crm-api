@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { ForbiddenError } from '../errors/AppError.js'
-import { getDb } from '../database/connection.js'
-import type { Role } from '../database/types.js'
+import { ForbiddenError } from '@/shared/errors/AppError.js'
+import { getDb } from '@/shared/database/connection.js'
+import type { Role } from '@/shared/database/types.js'
 
 export function requireRole(...allowedRoles: Role[]) {
   return async (

@@ -1,17 +1,13 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
-import { authenticate } from '../../../shared/auth/authenticate.js'
-import { getDb } from '../../../shared/database/connection.js'
+import { authenticate } from '@/shared/auth/authenticate.js'
+import { requireRole } from '@/shared/auth/authorize.js'
 import {
-  NotFoundError,
-  ValidationError,
-} from '../../../shared/errors/AppError.js'
-import {
-  canTransitionDeal,
-  getValidDealTransitions,
-} from '../domain/DealState.js'
-import type { DealRow } from '../infrastructure/PostgresDealRepository.js'
+  encodeCursor,
+  decodeCursor,
+} from '@/shared/pagination/CursorEncoder.js'
+import { getValidDealTransitions } from '@/modules/deals/domain/DealState.js'
+import type { DealService } from '@/modules/deals/application/DealService.js'
 
 const createDealSchema = z.object({
   title: z.string().min(1).max(255),
@@ -23,251 +19,194 @@ const createDealSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
-async function findDeal(id: string, organizationId: string): Promise<DealRow> {
-  const row = await getDb()
-    .selectFrom('deals')
-    .where('id', '=', id)
-    .where('organization_id', '=', organizationId)
-    .where('deleted_at', 'is', null)
-    .executeTakeFirst()
-  if (!row) throw new NotFoundError('Deal', id)
-  return row as DealRow
+const updateDealSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  companyId: z.string().optional(),
+  contactId: z.string().optional(),
+  value: z.number().positive().optional(),
+  currency: z.string().length(3).optional(),
+  notes: z.string().max(5000).optional(),
+})
+
+function dealLinks(d: {
+  id: string
+  stage: 'NEW' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'WON' | 'LOST'
+}) {
+  return {
+    self: { href: `/api/v1/deals/${d.id}` },
+    win: getValidDealTransitions(d.stage).includes('WON')
+      ? { href: `/api/v1/deals/${d.id}/win`, method: 'POST' as const }
+      : undefined,
+    lose: getValidDealTransitions(d.stage).includes('LOST')
+      ? { href: `/api/v1/deals/${d.id}/lose`, method: 'POST' as const }
+      : undefined,
+  }
 }
 
-export async function dealRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', authenticate)
+export class DealRoutes {
+  constructor(private readonly service: DealService) {}
+  async register(app: FastifyInstance): Promise<void> {
+    app.addHook('preHandler', authenticate)
 
-  app.get(
-    '/api/v1/deals',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const orgId = request.auth!.organizationId
-      const rows = await getDb()
-        .selectFrom('deals')
-        .where('organization_id', '=', orgId)
-        .where('deleted_at', 'is', null)
-        .orderBy('created_at', 'desc')
-        .orderBy('id', 'desc')
-        .limit(26)
-        .execute()
+    app.get(
+      '/api/v1/deals',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const orgId = request.auth!.organizationId
+        const {
+          limit: rawLimit,
+          after,
+          stage,
+        } = request.query as {
+          limit?: string
+          after?: string
+          stage?: string
+        }
+        const limit = Math.min(Math.max(Number(rawLimit) || 25, 1), 100)
+        const cursor = after ? decodeCursor(after) : null
 
-      const deals = rows as DealRow[]
-      const hasNextPage = deals.length > 25
-      const data = hasNextPage ? deals.slice(0, 25) : deals
-
-      return reply.send({
-        data: data.map((d) => ({
-          ...d,
-          _links: {
-            self: { href: `/api/v1/deals/${d.id}` },
-            win: canTransitionDeal(d.stage, 'WON')
-              ? { href: `/api/v1/deals/${d.id}/win`, method: 'POST' }
-              : undefined,
-            lose: canTransitionDeal(d.stage, 'LOST')
-              ? { href: `/api/v1/deals/${d.id}/lose`, method: 'POST' }
-              : undefined,
-          },
-        })),
-        pagination: {
-          limit: 25,
-          hasNextPage,
-          nextCursor: hasNextPage
+        const deals = await this.service.list(orgId, {
+          limit,
+          after: cursor
             ? Buffer.from(
-                JSON.stringify({
-                  createdAt: data[data.length - 1]!.created_at,
-                  id: data[data.length - 1]!.id,
-                }),
+                JSON.stringify({ createdAt: cursor.createdAt, id: cursor.id }),
               ).toString('base64url')
-            : null,
-        },
-      })
-    },
-  )
+            : undefined,
+          stage,
+        })
 
-  app.get(
-    '/api/v1/deals/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const deal = await findDeal(id, request.auth!.organizationId)
-      const validTransitions = getValidDealTransitions(deal.stage)
+        const hasNextPage = deals.length > limit
+        const data = hasNextPage ? deals.slice(0, limit) : deals
 
-      return reply.send({
-        data: {
-          ...deal,
-          _links: {
-            self: { href: `/api/v1/deals/${deal.id}` },
-            win: validTransitions.includes('WON')
-              ? { href: `/api/v1/deals/${deal.id}/win`, method: 'POST' }
-              : undefined,
-            lose: validTransitions.includes('LOST')
-              ? { href: `/api/v1/deals/${deal.id}/lose`, method: 'POST' }
-              : undefined,
+        return reply.send({
+          data: data.map((d) => ({
+            ...d,
+            _links: dealLinks(d),
+          })),
+          pagination: {
+            limit,
+            hasNextPage,
+            nextCursor: hasNextPage
+              ? encodeCursor({
+                  createdAt: data[data.length - 1]!.created_at.toISOString(),
+                  id: data[data.length - 1]!.id,
+                })
+              : null,
           },
-        },
-      })
-    },
-  )
-
-  app.post(
-    '/api/v1/deals',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = createDealSchema.parse(request.body)
-      const orgId = request.auth!.organizationId
-
-      const row = await getDb()
-        .insertInto('deals')
-        .values({
-          id: `dl_${nanoid(12)}`,
-          organization_id: orgId,
-          title: body.title,
-          companyId: body.companyId ?? null,
-          contactId: body.contactId ?? null,
-          leadId: body.leadId ?? null,
-          value: body.value ?? null,
-          currency: body.currency ?? 'USD',
-          stage: 'NEW',
-          notes: body.notes ?? null,
-          version: 1,
-          created_at: new Date(),
-          updated_at: new Date(),
         })
-        .returningAll()
-        .executeTakeFirstOrThrow()
+      },
+    )
 
-      const deal = row as DealRow
-      return reply.status(201).send({
-        data: {
-          ...deal,
-          _links: {
-            self: { href: `/api/v1/deals/${deal.id}` },
-            win: { href: `/api/v1/deals/${deal.id}/win`, method: 'POST' },
-            lose: { href: `/api/v1/deals/${deal.id}/lose`, method: 'POST' },
+    app.get(
+      '/api/v1/deals/:id',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const deal = await this.service.get(id, request.auth!.organizationId)
+        return reply.send({
+          data: {
+            ...deal,
+            _links: dealLinks(deal),
           },
-        },
-      })
-    },
-  )
-
-  // Deal stage transitions
-  app.post(
-    '/api/v1/deals/:id/advance',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const body = z
-        .object({
-          stage: z.enum([
-            'QUALIFIED',
-            'PROPOSAL',
-            'NEGOTIATION',
-            'WON',
-            'LOST',
-          ]),
         })
-        .parse(request.body)
-      const orgId = request.auth!.organizationId
-      const deal = await findDeal(id, orgId)
+      },
+    )
 
-      if (!canTransitionDeal(deal.stage, body.stage)) {
-        throw new ValidationError(
-          `Deal in stage '${deal.stage}' cannot transition to '${body.stage}'`,
-        )
-      }
-
-      const row = await getDb()
-        .updateTable('deals')
-        .set({
-          stage: body.stage,
-          version: deal.version + 1,
-          updated_at: new Date(),
+    app.post(
+      '/api/v1/deals',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = createDealSchema.parse(request.body)
+        const deal = await this.service.create({
+          organizationId: request.auth!.organizationId,
+          ...body,
         })
-        .where('id', '=', id)
-        .where('organization_id', '=', orgId)
-        .where('version', '=', deal.version)
-        .returningAll()
-        .executeTakeFirst()
-
-      if (!row) {
-        throw new ValidationError(
-          'Conflict: deal was modified by another request',
-        )
-      }
-
-      return reply.send({ data: row })
-    },
-  )
-
-  app.post(
-    '/api/v1/deals/:id/win',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const orgId = request.auth!.organizationId
-      const deal = await findDeal(id, orgId)
-
-      if (!canTransitionDeal(deal.stage, 'WON')) {
-        throw new ValidationError(`Deal in stage '${deal.stage}' cannot be won`)
-      }
-
-      const row = await getDb()
-        .updateTable('deals')
-        .set({
-          stage: 'WON',
-          version: deal.version + 1,
-          updated_at: new Date(),
+        return reply.status(201).send({
+          data: {
+            ...deal,
+            _links: dealLinks(deal),
+          },
         })
-        .where('id', '=', id)
-        .where('organization_id', '=', orgId)
-        .where('version', '=', deal.version)
-        .returningAll()
-        .executeTakeFirst()
+      },
+    )
 
-      if (!row) {
-        throw new ValidationError(
-          'Conflict: deal was modified by another request',
-        )
-      }
-
-      return reply.send({
-        data: row,
-        _links: { self: { href: `/api/v1/deals/${id}` } },
-      })
-    },
-  )
-
-  app.post(
-    '/api/v1/deals/:id/lose',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const orgId = request.auth!.organizationId
-      const deal = await findDeal(id, orgId)
-
-      if (!canTransitionDeal(deal.stage, 'LOST')) {
-        throw new ValidationError(
-          `Deal in stage '${deal.stage}' cannot be lost`,
-        )
-      }
-
-      const row = await getDb()
-        .updateTable('deals')
-        .set({
-          stage: 'LOST',
-          version: deal.version + 1,
-          updated_at: new Date(),
+    app.patch(
+      '/api/v1/deals/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const body = updateDealSchema.parse(request.body)
+        const deal = await this.service.update({
+          dealId: id,
+          organizationId: request.auth!.organizationId,
+          ...body,
         })
-        .where('id', '=', id)
-        .where('organization_id', '=', orgId)
-        .where('version', '=', deal.version)
-        .returningAll()
-        .executeTakeFirst()
+        return reply.send({
+          data: {
+            ...deal,
+            _links: dealLinks(deal),
+          },
+        })
+      },
+    )
 
-      if (!row) {
-        throw new ValidationError(
-          'Conflict: deal was modified by another request',
+    app.delete(
+      '/api/v1/deals/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        await this.service.remove(id, request.auth!.organizationId)
+        return reply.status(204).send()
+      },
+    )
+
+    app.post(
+      '/api/v1/deals/:id/advance',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const body = z
+          .object({
+            stage: z.enum([
+              'QUALIFIED',
+              'PROPOSAL',
+              'NEGOTIATION',
+              'WON',
+              'LOST',
+            ]),
+          })
+          .parse(request.body)
+        const deal = await this.service.advance(
+          id,
+          request.auth!.organizationId,
+          body.stage,
         )
-      }
+        return reply.send({
+          data: { ...deal, _links: dealLinks(deal) },
+        })
+      },
+    )
 
-      return reply.send({
-        data: row,
-        _links: { self: { href: `/api/v1/deals/${id}` } },
-      })
-    },
-  )
+    app.post(
+      '/api/v1/deals/:id/win',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const deal = await this.service.win(id, request.auth!.organizationId)
+        return reply.send({
+          data: { ...deal, _links: dealLinks(deal) },
+        })
+      },
+    )
+
+    app.post(
+      '/api/v1/deals/:id/lose',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const deal = await this.service.lose(id, request.auth!.organizationId)
+        return reply.send({
+          data: { ...deal, _links: dealLinks(deal) },
+        })
+      },
+    )
+  }
 }

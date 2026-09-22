@@ -41,7 +41,7 @@ describe('Security Tests', () => {
       const orgA = await createTestOrganization()
       const userA = await createTestUser()
       await createTestMembership({ userId: userA.id, organizationId: orgA.id })
-      const { token: tokenA } = await createTestSession(userA.id, orgA.id)
+      const { token: _tokenA } = await createTestSession(userA.id, orgA.id)
 
       const orgB = await createTestOrganization()
       const userB = await createTestUser()

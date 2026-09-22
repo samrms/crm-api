@@ -1,12 +1,24 @@
-import { Kysely, PostgresDialect } from 'kysely'
+import { Kysely, PostgresDialect, SqliteDialect } from 'kysely'
 import pg from 'pg'
-import { config } from '../config.js'
-import { logger } from '../logging/logger.js'
+import SqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabase from 'better-sqlite3'
+import { config } from '@/shared/config.js'
+import { logger } from '@/shared/logging/logger.js'
 import type { Database } from './types.js'
 
 const { Pool } = pg
 
 let pool: pg.Pool | null = null
+let db: Kysely<Database> | null = null
+
+function isSqlite(url: string): boolean {
+  return (
+    url.startsWith('sqlite://') ||
+    url.startsWith('sqlite:') ||
+    url.includes(':memory:') ||
+    url.includes('.db') ||
+    url.includes('.sqlite')
+  )
+}
 
 export function getPool(): pg.Pool {
   if (!pool) {
@@ -16,22 +28,29 @@ export function getPool(): pg.Pool {
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
     })
-    pool.on('error', (err) => {
-      logger.error({ err }, 'Unexpected database pool error')
-    })
+    pool.on('error', (err) => logger.error({ err }, 'DB pool error'))
   }
   return pool
 }
 
-let db: Kysely<Database> | null = null
-
 export function getDb(): Kysely<Database> {
   if (!db) {
-    db = new Kysely<Database>({
-      dialect: new PostgresDialect({
-        pool: getPool(),
-      }),
-    })
+    if (isSqlite(config.databaseUrl)) {
+      db = new Kysely<Database>({
+        dialect: new SqliteDialect({
+          database:
+            new SqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabase(
+              config.databaseUrl.replace('sqlite://', '') || ':memory:',
+            ),
+        }),
+      })
+      logger.info('DB: SQLite mode (in-memory/file)')
+    } else {
+      db = new Kysely<Database>({
+        dialect: new PostgresDialect({ pool: getPool() }),
+      })
+      logger.info('DB: PostgreSQL mode')
+    }
   }
   return db
 }
@@ -44,14 +63,5 @@ export async function closeDatabase(): Promise<void> {
   if (pool) {
     await pool.end()
     pool = null
-  }
-}
-
-export async function checkDatabaseConnection(): Promise<boolean> {
-  try {
-    await getPool().query('SELECT 1')
-    return true
-  } catch {
-    return false
   }
 }

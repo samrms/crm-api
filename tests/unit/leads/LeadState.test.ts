@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   canTransitionLead,
   getValidLeadTransitions,
+  findTransitionPath,
 } from '../../../src/modules/leads/domain/LeadState.ts'
 
 describe('Lead State Machine', () => {
@@ -76,6 +77,52 @@ describe('Lead State Machine', () => {
 
     it('CONVERTED allows nothing', () => {
       expect(getValidLeadTransitions('CONVERTED')).toEqual([])
+    })
+  })
+
+  describe('findTransitionPath (BFS)', () => {
+    it('same state returns empty path', () => {
+      expect(findTransitionPath('NEW', 'NEW')).toEqual([])
+    })
+
+    it('NEW -> CONTACTED is one step', () => {
+      expect(findTransitionPath('NEW', 'CONTACTED')).toEqual(['CONTACTED'])
+    })
+
+    it('NEW -> QUALIFIED goes through CONTACTED', () => {
+      expect(findTransitionPath('NEW', 'QUALIFIED')).toEqual([
+        'CONTACTED',
+        'QUALIFIED',
+      ])
+    })
+
+    it('NEW -> CONVERTED goes through CONTACTED and QUALIFIED', () => {
+      expect(findTransitionPath('NEW', 'CONVERTED')).toEqual([
+        'CONTACTED',
+        'QUALIFIED',
+        'CONVERTED',
+      ])
+    })
+
+    it('CONTACTED -> CONVERTED goes through QUALIFIED', () => {
+      expect(findTransitionPath('CONTACTED', 'CONVERTED')).toEqual([
+        'QUALIFIED',
+        'CONVERTED',
+      ])
+    })
+
+    it('CONVERTED -> NEW returns null (terminal state)', () => {
+      expect(findTransitionPath('CONVERTED', 'NEW')).toBeNull()
+    })
+
+    it('DISQUALIFIED -> NEW returns null (terminal state)', () => {
+      expect(findTransitionPath('DISQUALIFIED', 'NEW')).toBeNull()
+    })
+
+    it('NEW -> DISQUALIFIED is direct', () => {
+      expect(findTransitionPath('NEW', 'DISQUALIFIED')).toEqual([
+        'DISQUALIFIED',
+      ])
     })
   })
 })

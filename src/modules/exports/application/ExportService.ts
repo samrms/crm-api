@@ -1,6 +1,8 @@
+import type { Kysely } from 'kysely'
+import type { Database } from '@/shared/database/types.js'
 import { nanoid } from 'nanoid'
-import { getDb } from '../../../shared/database/connection.js'
-import { writeOutboxEvent } from '../../../shared/outbox/OutboxDispatcher.js'
+import type { ExportRepository } from '@/modules/exports/infrastructure/PostgresExportRepository.js'
+import { NotFoundError } from '@/shared/errors/AppError.js'
 
 export interface CreateExportInput {
   organizationId: string
@@ -8,42 +10,43 @@ export interface CreateExportInput {
   type: string
 }
 
-export async function createExport(input: CreateExportInput) {
-  const id = `exp_${nanoid(12)}`
-  const now = new Date()
+export class ExportService {
+  constructor(
+    private readonly db: Kysely<Database>,
+    private readonly repo: ExportRepository,
+  ) {}
 
-  await getDb()
-    .transaction()
-    .execute(async (trx) => {
+  async createExport(input: CreateExportInput) {
+    const id = `exp_${nanoid(12)}`
+    await this.db.transaction().execute(async (trx) => {
+      await this.repo.create({
+        id,
+        organizationId: input.organizationId,
+        actorId: input.actorId,
+        type: input.type,
+      })
       await trx
-        .insertInto('exports')
+        .insertInto('outbox_events')
         .values({
-          id,
+          id: `ob_${nanoid(12)}`,
           organization_id: input.organizationId,
-          actor_id: input.actorId,
-          type: input.type,
-          status: 'PENDING',
-          created_at: now,
-          updated_at: now,
+          type: 'EXPORT_CREATED',
+          payload: { exportId: id, type: input.type },
+          created_at: new Date(),
         })
         .execute()
-
-      await writeOutboxEvent({
-        organizationId: input.organizationId,
-        type: 'EXPORT_CREATED',
-        payload: { exportId: id, type: input.type },
-      })
     })
+    return {
+      id,
+      organizationId: input.organizationId,
+      actorId: input.actorId,
+      type: input.type,
+    }
+  }
 
-  return { id, status: 'PENDING' }
-}
-
-export async function getExport(id: string, organizationId: string) {
-  const row = await getDb()
-    .selectFrom('exports')
-    .where('id', '=', id)
-    .where('organization_id', '=', organizationId)
-    .executeTakeFirst()
-  if (!row) throw new Error('Export not found')
-  return row
+  async getExport(id: string, organizationId: string) {
+    const row = await this.repo.findById(id, organizationId)
+    if (!row) throw new NotFoundError('Export', id)
+    return row
+  }
 }

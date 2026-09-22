@@ -1,5 +1,5 @@
-import { getDb } from '../../../shared/database/connection.js'
-import type { LeadsTable } from '../../../shared/database/types.js'
+import type { Kysely } from 'kysely'
+import type { LeadsTable, Database } from '@/shared/database/types.js'
 
 export type LeadRow = LeadsTable
 
@@ -7,7 +7,7 @@ export interface LeadRepository {
   findById(id: string, organizationId: string): Promise<LeadRow | undefined>
   list(
     organizationId: string,
-    opts: { limit: number; after?: string },
+    opts: { limit: number; after?: string; status?: string },
   ): Promise<LeadRow[]>
   create(data: {
     id: string
@@ -19,6 +19,19 @@ export interface LeadRepository {
     source?: string
     notes?: string
   }): Promise<LeadRow>
+  update(
+    id: string,
+    organizationId: string,
+    data: {
+      email?: string
+      firstName?: string
+      lastName?: string
+      company?: string
+      source?: string
+      notes?: string
+    },
+    version: number,
+  ): Promise<LeadRow | undefined>
   updateStatus(
     id: string,
     organizationId: string,
@@ -30,14 +43,17 @@ export interface LeadRepository {
     organizationId: string,
     dealId: string,
   ): Promise<void>
+  softDelete(id: string, organizationId: string): Promise<boolean>
 }
 
 export class PostgresLeadRepository implements LeadRepository {
+  constructor(private readonly db: Kysely<Database>) {}
+
   async findById(
     id: string,
     organizationId: string,
   ): Promise<LeadRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('leads')
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
@@ -48,12 +64,18 @@ export class PostgresLeadRepository implements LeadRepository {
 
   async list(
     organizationId: string,
-    opts: { limit: number; after?: string },
+    opts: { limit: number; after?: string; status?: string },
   ): Promise<LeadRow[]> {
-    let query = getDb()
+    let query = this.db
       .selectFrom('leads')
       .where('organization_id', '=', organizationId)
       .where('deleted_at', 'is', null)
+
+    if (opts.status) {
+      query = query.where('status', '=', opts.status as LeadRow['status'])
+    }
+
+    query = query
       .orderBy('created_at', 'desc')
       .orderBy('id', 'desc')
       .limit(opts.limit + 1)
@@ -85,7 +107,7 @@ export class PostgresLeadRepository implements LeadRepository {
     notes?: string
   }): Promise<LeadRow> {
     const now = new Date()
-    const row = await getDb()
+    const row = await this.db
       .insertInto('leads')
       .values({
         id: data.id,
@@ -106,13 +128,38 @@ export class PostgresLeadRepository implements LeadRepository {
     return row as LeadRow
   }
 
+  async update(
+    id: string,
+    organizationId: string,
+    data: {
+      email?: string
+      firstName?: string
+      lastName?: string
+      company?: string
+      source?: string
+      notes?: string
+    },
+    version: number,
+  ): Promise<LeadRow | undefined> {
+    const row = await this.db
+      .updateTable('leads')
+      .set({ ...data, version: version + 1, updated_at: new Date() })
+      .where('id', '=', id)
+      .where('organization_id', '=', organizationId)
+      .where('version', '=', version)
+      .where('deleted_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst()
+    return row as LeadRow | undefined
+  }
+
   async updateStatus(
     id: string,
     organizationId: string,
     status: LeadRow['status'],
     version: number,
   ): Promise<LeadRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .updateTable('leads')
       .set({ status, version: version + 1, updated_at: new Date() })
       .where('id', '=', id)
@@ -129,11 +176,23 @@ export class PostgresLeadRepository implements LeadRepository {
     organizationId: string,
     dealId: string,
   ): Promise<void> {
-    await getDb()
+    await this.db
       .updateTable('leads')
       .set({ convertedDealId: dealId, updated_at: new Date() })
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
       .execute()
+  }
+
+  async softDelete(id: string, organizationId: string): Promise<boolean> {
+    const row = await this.db
+      .updateTable('leads')
+      .set({ deleted_at: new Date(), updated_at: new Date() })
+      .where('id', '=', id)
+      .where('organization_id', '=', organizationId)
+      .where('deleted_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst()
+    return !!row
   }
 }

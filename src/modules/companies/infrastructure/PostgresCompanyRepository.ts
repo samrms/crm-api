@@ -1,5 +1,5 @@
-import { getDb } from '../../../shared/database/connection.js'
-import type { CompaniesTable } from '../../../shared/database/types.js'
+import type { Kysely } from 'kysely'
+import type { CompaniesTable, Database } from '@/shared/database/types.js'
 
 export type CompanyRow = CompaniesTable
 
@@ -19,6 +19,7 @@ export interface CompanyRepository {
     name: string
     domain?: string
     industry?: string
+    size?: string
     website?: string
   }): Promise<CompanyRow>
   update(
@@ -28,17 +29,21 @@ export interface CompanyRepository {
       name?: string
       domain?: string
       industry?: string
+      size?: string
       website?: string
     },
   ): Promise<CompanyRow | undefined>
+  softDelete(id: string, organizationId: string): Promise<boolean>
 }
 
 export class PostgresCompanyRepository implements CompanyRepository {
+  constructor(private readonly db: Kysely<Database>) {}
+
   async findById(
     id: string,
     organizationId: string,
   ): Promise<CompanyRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('companies')
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
@@ -51,7 +56,7 @@ export class PostgresCompanyRepository implements CompanyRepository {
     name: string,
     organizationId: string,
   ): Promise<CompanyRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('companies')
       .where('name', '=', name)
       .where('organization_id', '=', organizationId)
@@ -64,7 +69,7 @@ export class PostgresCompanyRepository implements CompanyRepository {
     organizationId: string,
     opts: { limit: number; after?: string },
   ): Promise<CompanyRow[]> {
-    let query = getDb()
+    let query = this.db
       .selectFrom('companies')
       .where('organization_id', '=', organizationId)
       .where('deleted_at', 'is', null)
@@ -73,7 +78,6 @@ export class PostgresCompanyRepository implements CompanyRepository {
       .limit(opts.limit + 1)
 
     if (opts.after) {
-      // Simple cursor: decode and filter
       const decoded = JSON.parse(
         Buffer.from(opts.after, 'base64url').toString(),
       )
@@ -95,10 +99,11 @@ export class PostgresCompanyRepository implements CompanyRepository {
     name: string
     domain?: string
     industry?: string
+    size?: string
     website?: string
   }): Promise<CompanyRow> {
     const now = new Date()
-    const row = await getDb()
+    const row = await this.db
       .insertInto('companies')
       .values({
         id: data.id,
@@ -106,6 +111,7 @@ export class PostgresCompanyRepository implements CompanyRepository {
         name: data.name,
         domain: data.domain ?? null,
         industry: data.industry ?? null,
+        size: data.size ?? null,
         website: data.website ?? null,
         created_at: now,
         updated_at: now,
@@ -122,10 +128,11 @@ export class PostgresCompanyRepository implements CompanyRepository {
       name?: string
       domain?: string
       industry?: string
+      size?: string
       website?: string
     },
   ): Promise<CompanyRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .updateTable('companies')
       .set({ ...data, updated_at: new Date() })
       .where('id', '=', id)
@@ -134,5 +141,17 @@ export class PostgresCompanyRepository implements CompanyRepository {
       .returningAll()
       .executeTakeFirst()
     return row as CompanyRow | undefined
+  }
+
+  async softDelete(id: string, organizationId: string): Promise<boolean> {
+    const row = await this.db
+      .updateTable('companies')
+      .set({ deleted_at: new Date(), updated_at: new Date() })
+      .where('id', '=', id)
+      .where('organization_id', '=', organizationId)
+      .where('deleted_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst()
+    return !!row
   }
 }

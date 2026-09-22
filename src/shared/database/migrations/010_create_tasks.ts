@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely'
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable('tasks')
+    .ifNotExists()
     .addColumn('id', 'varchar(21)', (col) => col.primaryKey())
     .addColumn('organization_id', 'varchar(21)', (col) =>
       col.notNull().references('organizations.id').onDelete('cascade'),
@@ -28,6 +29,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createIndex('idx_tasks_organization_id')
+    .ifNotExists()
     .on('tasks')
     .column('organization_id')
     .execute()

@@ -10,18 +10,16 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
   app.get('/ready', async (_request: FastifyRequest, reply: FastifyReply) => {
     const checks: Record<string, string> = {}
 
-    // Database
     try {
-      const { getPool } = await import('../database/connection.js')
+      const { getPool } = await import('@/shared/database/connection.js')
       await getPool().query('SELECT 1')
       checks.postgres = 'ok'
     } catch {
       checks.postgres = 'unavailable'
     }
 
-    // Redis (optional — core CRM works without it)
     try {
-      const { getRedis } = await import('../cache/redis.js')
+      const { getRedis } = await import('@/shared/cache/redis.js')
       const redis = getRedis()
       await redis.ping()
       checks.redis = 'ok'

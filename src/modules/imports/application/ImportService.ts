@@ -1,9 +1,8 @@
+import type { Kysely } from 'kysely'
+import type { Database } from '@/shared/database/types.js'
 import { nanoid } from 'nanoid'
-import { getDb } from '../../../shared/database/connection.js'
-import { PostgresImportRepository } from '../infrastructure/PostgresImportRepository.js'
-import { writeOutboxEvent } from '../../../shared/outbox/OutboxDispatcher.js'
-
-const repo = new PostgresImportRepository()
+import type { ImportRepository } from '@/modules/imports/infrastructure/PostgresImportRepository.js'
+import { NotFoundError } from '@/shared/errors/AppError.js'
 
 export interface CreateImportInput {
   organizationId: string
@@ -12,30 +11,39 @@ export interface CreateImportInput {
   filePath: string
 }
 
-export async function createImport(input: CreateImportInput) {
-  const id = `imp_${nanoid(12)}`
+export class ImportService {
+  constructor(
+    private readonly db: Kysely<Database>,
+    private readonly repo: ImportRepository,
+  ) {}
+  async createImport(input: CreateImportInput) {
+    const id = `imp_${nanoid(12)}`
 
-  const result = await getDb()
-    .transaction()
-    .execute(async () => {
-      const imp = await repo.create({ ...input, id })
+    const result = await this.db.transaction().execute(async (trx) => {
+      const imp = await this.repo.create({ ...input, id })
 
-      await writeOutboxEvent({
-        organizationId: input.organizationId,
-        type: 'IMPORT_CREATED',
-        payload: { importId: id, type: input.type },
-      })
+      await trx
+        .insertInto('outbox_events')
+        .values({
+          id: `ob_${nanoid(12)}`,
+          organization_id: input.organizationId,
+          type: 'IMPORT_CREATED',
+          payload: { importId: id, type: input.type },
+          created_at: new Date(),
+        })
+        .execute()
 
       return imp
     })
 
-  return result
-}
-
-export async function getImport(id: string, organizationId: string) {
-  const imp = await repo.findById(id, organizationId)
-  if (!imp) {
-    throw new Error('Import not found')
+    return result
   }
-  return imp
+
+  async getImport(id: string, organizationId: string) {
+    const imp = await this.repo.findById(id, organizationId)
+    if (!imp) {
+      throw new NotFoundError('Import', id)
+    }
+    return imp
+  }
 }

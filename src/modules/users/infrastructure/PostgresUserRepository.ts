@@ -1,5 +1,5 @@
-import { getDb } from '../../../shared/database/connection.js'
-import type { UsersTable } from '../../../shared/database/types.js'
+import type { Kysely } from 'kysely'
+import type { UsersTable, Database } from '@/shared/database/types.js'
 
 export type UserRow = UsersTable
 
@@ -15,8 +15,10 @@ export interface UserRepository {
 }
 
 export class PostgresUserRepository implements UserRepository {
+  constructor(private readonly db: Kysely<Database>) {}
+
   async findById(id: string): Promise<UserRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('users')
       .where('id', '=', id)
       .where('deleted_at', 'is', null)
@@ -25,7 +27,7 @@ export class PostgresUserRepository implements UserRepository {
   }
 
   async findByEmail(email: string): Promise<UserRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('users')
       .where('email', '=', email)
       .where('deleted_at', 'is', null)
@@ -40,7 +42,7 @@ export class PostgresUserRepository implements UserRepository {
     passwordHash: string
   }): Promise<UserRow> {
     const now = new Date()
-    const row = await getDb()
+    const row = await this.db
       .insertInto('users')
       .values({
         id: data.id,

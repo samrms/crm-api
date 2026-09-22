@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis'
-import { config } from '../config.js'
-import { logger } from '../logging/logger.js'
+import { config } from '@/shared/config.js'
+import { logger } from '@/shared/logging/logger.js'
 
 let redis: Redis | null = null
 
@@ -16,21 +16,4 @@ export function getRedis(): Redis {
     })
   }
   return redis
-}
-
-export async function closeRedis(): Promise<void> {
-  if (redis) {
-    await redis.quit()
-    redis = null
-  }
-}
-
-export async function checkRedisConnection(): Promise<boolean> {
-  try {
-    const r = getRedis()
-    const result = await r.ping()
-    return result === 'PONG'
-  } catch {
-    return false
-  }
 }

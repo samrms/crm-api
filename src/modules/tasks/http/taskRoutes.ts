@@ -1,9 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
-import { authenticate } from '../../../shared/auth/authenticate.js'
-import { getDb } from '../../../shared/database/connection.js'
-import { NotFoundError } from '../../../shared/errors/AppError.js'
+import { authenticate } from '@/shared/auth/authenticate.js'
+import { requireRole } from '@/shared/auth/authorize.js'
+import {
+  encodeCursor,
+  decodeCursor,
+} from '@/shared/pagination/CursorEncoder.js'
+import type { TaskService } from '@/modules/tasks/application/TaskService.js'
 
 const createTaskSchema = z.object({
   title: z.string().min(1).max(255),
@@ -11,74 +14,178 @@ const createTaskSchema = z.object({
   dueDate: z.string().datetime().optional(),
   dealId: z.string().optional(),
   leadId: z.string().optional(),
+  contactId: z.string().optional(),
   assignedToId: z.string().optional(),
 })
 
-export async function taskRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', authenticate)
+const updateTaskSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(5000).optional(),
+  status: z
+    .enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'])
+    .optional(),
+  dueDate: z.string().datetime().optional(),
+  dealId: z.string().optional(),
+  leadId: z.string().optional(),
+  contactId: z.string().optional(),
+  assignedToId: z.string().optional(),
+})
 
-  app.get(
-    '/api/v1/tasks',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const orgId = request.auth!.organizationId
-      const rows = await getDb()
-        .selectFrom('tasks')
-        .where('organization_id', '=', orgId)
-        .where('deleted_at', 'is', null)
-        .orderBy('created_at', 'desc')
-        .limit(25)
-        .execute()
+function taskLinks(t: {
+  id: string
+  dealId: string | null
+  leadId: string | null
+  contactId: string | null
+}) {
+  return {
+    self: { href: `/api/v1/tasks/${t.id}` },
+    ...(t.dealId ? { deal: { href: `/api/v1/deals/${t.dealId}` } } : {}),
+    ...(t.leadId ? { lead: { href: `/api/v1/leads/${t.leadId}` } } : {}),
+    ...(t.contactId
+      ? { contact: { href: `/api/v1/contacts/${t.contactId}` } }
+      : {}),
+  }
+}
 
-      return reply.send({ data: rows })
-    },
-  )
+export class TaskRoutes {
+  constructor(private readonly service: TaskService) {}
+  async register(app: FastifyInstance): Promise<void> {
+    app.addHook('preHandler', authenticate)
 
-  app.post(
-    '/api/v1/tasks',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = createTaskSchema.parse(request.body)
-      const orgId = request.auth!.organizationId
-      const now = new Date()
+    app.get(
+      '/api/v1/tasks',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const orgId = request.auth!.organizationId
+        const {
+          limit: rawLimit,
+          after,
+          status,
+        } = request.query as {
+          limit?: string
+          after?: string
+          status?: string
+        }
+        const limit = Math.min(Math.max(Number(rawLimit) || 25, 1), 100)
+        const cursor = after ? decodeCursor(after) : null
 
-      const row = await getDb()
-        .insertInto('tasks')
-        .values({
-          id: `task_${nanoid(12)}`,
-          organization_id: orgId,
-          title: body.title,
-          description: body.description ?? null,
-          dueDate: body.dueDate ? new Date(body.dueDate) : null,
-          dealId: body.dealId ?? null,
-          leadId: body.leadId ?? null,
-          assignedToId: body.assignedToId ?? null,
-          status: 'PENDING',
-          created_at: now,
-          updated_at: now,
+        const tasks = await this.service.list(orgId, {
+          limit,
+          after: cursor
+            ? Buffer.from(
+                JSON.stringify({ createdAt: cursor.createdAt, id: cursor.id }),
+              ).toString('base64url')
+            : undefined,
+          status,
         })
-        .returningAll()
-        .executeTakeFirstOrThrow()
 
-      return reply.status(201).send({ data: row })
-    },
-  )
+        const hasNextPage = tasks.length > limit
+        const data = hasNextPage ? tasks.slice(0, limit) : tasks
 
-  app.post(
-    '/api/v1/tasks/:id/complete',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string }
-      const orgId = request.auth!.organizationId
+        return reply.send({
+          data: data.map((t) => ({
+            ...t,
+            _links: taskLinks(t),
+          })),
+          pagination: {
+            limit,
+            hasNextPage,
+            nextCursor: hasNextPage
+              ? encodeCursor({
+                  createdAt: data[data.length - 1]!.created_at.toISOString(),
+                  id: data[data.length - 1]!.id,
+                })
+              : null,
+          },
+        })
+      },
+    )
 
-      const row = await getDb()
-        .updateTable('tasks')
-        .set({ status: 'COMPLETED', updated_at: new Date() })
-        .where('id', '=', id)
-        .where('organization_id', '=', orgId)
-        .where('deleted_at', 'is', null)
-        .returningAll()
-        .executeTakeFirst()
+    app.get(
+      '/api/v1/tasks/:id',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const task = await this.service.get(id, request.auth!.organizationId)
+        return reply.send({
+          data: {
+            ...task,
+            _links: taskLinks(task),
+          },
+        })
+      },
+    )
 
-      if (!row) throw new NotFoundError('Task', id)
-      return reply.send({ data: row })
-    },
-  )
+    app.post(
+      '/api/v1/tasks',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = createTaskSchema.parse(request.body)
+        const task = await this.service.create({
+          organizationId: request.auth!.organizationId,
+          title: body.title,
+          description: body.description,
+          dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+          dealId: body.dealId,
+          leadId: body.leadId,
+          contactId: body.contactId,
+          assignedToId: body.assignedToId,
+        })
+        return reply.status(201).send({
+          data: {
+            ...task,
+            _links: taskLinks(task),
+          },
+        })
+      },
+    )
+
+    app.patch(
+      '/api/v1/tasks/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const body = updateTaskSchema.parse(request.body)
+        const task = await this.service.update({
+          taskId: id,
+          organizationId: request.auth!.organizationId,
+          ...body,
+          dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+        })
+        return reply.send({
+          data: {
+            ...task,
+            _links: taskLinks(task),
+          },
+        })
+      },
+    )
+
+    app.post(
+      '/api/v1/tasks/:id/complete',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        const task = await this.service.update({
+          taskId: id,
+          organizationId: request.auth!.organizationId,
+          status: 'COMPLETED',
+        })
+        return reply.send({
+          data: {
+            ...task,
+            _links: taskLinks(task),
+          },
+        })
+      },
+    )
+
+    app.delete(
+      '/api/v1/tasks/:id',
+      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id } = request.params as { id: string }
+        await this.service.remove(id, request.auth!.organizationId)
+        return reply.status(204).send()
+      },
+    )
+  }
 }

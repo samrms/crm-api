@@ -1,14 +1,13 @@
 import { nanoid } from 'nanoid'
-import { PostgresCompanyRepository } from '../infrastructure/PostgresCompanyRepository.js'
-import { NotFoundError } from '../../../shared/errors/AppError.js'
-
-const repo = new PostgresCompanyRepository()
+import type { CompanyRepository } from '@/modules/companies/infrastructure/PostgresCompanyRepository.js'
+import { NotFoundError } from '@/shared/errors/AppError.js'
 
 export interface CreateCompanyInput {
   organizationId: string
   name: string
   domain?: string
   industry?: string
+  size?: string
   website?: string
 }
 
@@ -18,45 +17,60 @@ export interface UpdateCompanyInput {
   name?: string
   domain?: string
   industry?: string
+  size?: string
   website?: string
 }
 
-export async function createCompany(input: CreateCompanyInput) {
-  const id = `co_${nanoid(12)}`
-  return repo.create({
-    id,
-    organizationId: input.organizationId,
-    name: input.name,
-    domain: input.domain,
-    industry: input.industry,
-    website: input.website,
-  })
-}
+export class CompanyService {
+  constructor(private readonly repo: CompanyRepository) {}
 
-export async function updateCompany(input: UpdateCompanyInput) {
-  const result = await repo.update(input.companyId, input.organizationId, {
-    name: input.name,
-    domain: input.domain,
-    industry: input.industry,
-    website: input.website,
-  })
-  if (!result) {
-    throw new NotFoundError('Company', input.companyId)
+  async create(input: CreateCompanyInput) {
+    const id = `co_${nanoid(12)}`
+    return this.repo.create({
+      id,
+      organizationId: input.organizationId,
+      name: input.name,
+      domain: input.domain,
+      industry: input.industry,
+      size: input.size,
+      website: input.website,
+    })
   }
-  return result
-}
 
-export async function getCompany(id: string, organizationId: string) {
-  const company = await repo.findById(id, organizationId)
-  if (!company) {
-    throw new NotFoundError('Company', id)
+  async update(input: UpdateCompanyInput) {
+    const result = await this.repo.update(
+      input.companyId,
+      input.organizationId,
+      {
+        name: input.name,
+        domain: input.domain,
+        industry: input.industry,
+        size: input.size,
+        website: input.website,
+      },
+    )
+    if (!result) {
+      throw new NotFoundError('Company', input.companyId)
+    }
+    return result
   }
-  return company
-}
 
-export async function listCompanies(
-  organizationId: string,
-  opts: { limit: number; after?: string },
-) {
-  return repo.list(organizationId, opts)
+  async get(id: string, organizationId: string) {
+    const company = await this.repo.findById(id, organizationId)
+    if (!company) {
+      throw new NotFoundError('Company', id)
+    }
+    return company
+  }
+
+  async list(organizationId: string, opts: { limit: number; after?: string }) {
+    return this.repo.list(organizationId, opts)
+  }
+
+  async remove(id: string, organizationId: string): Promise<void> {
+    const deleted = await this.repo.softDelete(id, organizationId)
+    if (!deleted) {
+      throw new NotFoundError('Company', id)
+    }
+  }
 }

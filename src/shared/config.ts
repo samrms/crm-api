@@ -18,12 +18,6 @@ function getEnvInt(key: string, fallback: number): number {
   return parsed
 }
 
-export function getEnvBool(key: string, fallback: boolean): boolean {
-  const raw = process.env[key]
-  if (raw === undefined) return fallback
-  return raw === 'true' || raw === '1'
-}
-
 export const config = {
   port: getEnvInt('PORT', 3000),
   host: getEnv('HOST', '0.0.0.0'),
@@ -42,10 +36,6 @@ export const config = {
     'dev-session-secret-change-in-production',
   ),
   sessionMaxAgeDays: getEnvInt('SESSION_MAX_AGE_DAYS', 30),
-
-  aiApiKey: getEnv('AI_API_KEY', ''),
-  aiModel: getEnv('AI_MODEL', 'gpt-4o-mini'),
-
   storageDir: getEnv('STORAGE_DIR', './storage'),
   corsOrigin: getEnv('CORS_ORIGIN', 'http://localhost:5173'),
 

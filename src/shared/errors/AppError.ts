@@ -1,19 +1,12 @@
 export class AppError extends Error {
   readonly statusCode: number
   readonly code: string
-  readonly requestId?: string
 
-  constructor(opts: {
-    statusCode: number
-    code: string
-    message: string
-    requestId?: string
-  }) {
+  constructor(opts: { statusCode: number; code: string; message: string }) {
     super(opts.message)
     this.name = this.constructor.name
     this.statusCode = opts.statusCode
     this.code = opts.code
-    this.requestId = opts.requestId
   }
 }
 

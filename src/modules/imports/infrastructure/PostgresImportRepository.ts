@@ -1,5 +1,5 @@
-import { getDb } from '../../../shared/database/connection.js'
-import type { ImportsTable } from '../../../shared/database/types.js'
+import type { Kysely } from 'kysely'
+import type { ImportsTable, Database } from '@/shared/database/types.js'
 
 export type ImportRow = ImportsTable
 
@@ -24,11 +24,13 @@ export interface ImportRepository {
 }
 
 export class PostgresImportRepository implements ImportRepository {
+  constructor(private readonly db: Kysely<Database>) {}
+
   async findById(
     id: string,
     organizationId: string,
   ): Promise<ImportRow | undefined> {
-    const row = await getDb()
+    const row = await this.db
       .selectFrom('imports')
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
@@ -44,7 +46,7 @@ export class PostgresImportRepository implements ImportRepository {
     filePath: string
   }): Promise<ImportRow> {
     const now = new Date()
-    const row = await getDb()
+    const row = await this.db
       .insertInto('imports')
       .values({
         id: data.id,
@@ -69,7 +71,7 @@ export class PostgresImportRepository implements ImportRepository {
     id: string,
     data: { processed: number; successful: number; failed: number },
   ): Promise<void> {
-    await getDb()
+    await this.db
       .updateTable('imports')
       .set({ ...data, updated_at: new Date() })
       .where('id', '=', id)
@@ -81,7 +83,7 @@ export class PostgresImportRepository implements ImportRepository {
     status: ImportRow['status'],
     errorMessage?: string,
   ): Promise<void> {
-    await getDb()
+    await this.db
       .updateTable('imports')
       .set({
         status,
