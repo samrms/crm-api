@@ -81,4 +81,18 @@ export class TaskService {
       throw new NotFoundError('Task', id)
     }
   }
+
+  async complete(taskId: string, organizationId: string) {
+    const result = await this.repo.update(taskId, organizationId, {
+      status: 'COMPLETED',
+    })
+    if (!result) {
+      throw new NotFoundError('Task', taskId)
+    }
+    return result
+  }
+}
+
+export function createTaskService(repo: TaskRepository): TaskService {
+  return new TaskService(repo)
 }

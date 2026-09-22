@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createContactService } from '../../../src/modules/contacts/application/ContactService.js'
+import { ContactService } from '../../../src/modules/contacts/application/ContactService.js'
+import type { ContactRepository } from '../../../src/modules/contacts/infrastructure/PostgresContactRepository.js'
 
 describe('Unit: ContactService', () => {
   it('create contact', async () => {
-    const svc = createContactService({
+    const repo = {
       create: vi.fn().mockResolvedValue({ id: 'ct1', email: 'a@b' }),
-    } as any)
+    } as ContactRepository
+    const svc = new ContactService(repo)
     const r = await svc.create({
-      id: 'ct1',
       organizationId: 'o1',
       email: 'a@b',
       firstName: 'A',

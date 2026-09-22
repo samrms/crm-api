@@ -1,14 +1,29 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createLeadService } from '../../../src/modules/leads/application/LeadService.js'
+import { LeadService } from '../../../src/modules/leads/application/LeadService.js'
+import type { LeadRepository } from '../../../src/modules/leads/infrastructure/PostgresLeadRepository.ts'
+import type { LeadStatus } from '../../../src/modules/leads/domain/LeadState.js'
 
 describe('Unit: LeadService', () => {
   it('qualify transitions state', async () => {
-    const svc = createLeadService({
+    const repo = {
+      findById: vi.fn().mockResolvedValue({
+        id: 'l1',
+        status: 'NEW' as LeadStatus,
+        version: 1,
+      }),
+      updateStatus: vi
+        .fn()
+        .mockResolvedValue({ id: 'l1', status: 'QUALIFIED', version: 2 }),
       findById: vi
         .fn()
-        .mockResolvedValue({ id: 'l1', status: 'NEW', version: 1 }),
-      update: vi.fn().mockResolvedValue({ id: 'l1', status: 'CONTACTED' }),
-    } as any)
+        .mockResolvedValue({ id: 'l1', status: 'QUALIFIED', version: 2 }),
+      update: vi.fn(),
+      create: vi.fn(),
+      list: vi.fn(),
+      updateWithDeal: vi.fn(),
+      softDelete: vi.fn(),
+    } as LeadRepository
+    const svc = new LeadService(repo)
     const res = await svc.qualify('l1', 'org')
     expect(res.status).toBeDefined()
   })

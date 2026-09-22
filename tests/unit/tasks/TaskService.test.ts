@@ -1,13 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createTaskService } from '../../../src/modules/tasks/application/TaskService.js'
+import { TaskService } from '../../../src/modules/tasks/application/TaskService.js'
+import type { TaskRepository } from '../../../src/modules/tasks/infrastructure/PostgresTaskRepository.js'
 
 describe('Unit: TaskService', () => {
   it('complete task', async () => {
-    const svc = createTaskService({
+    const repo = {
       findById: vi.fn().mockResolvedValue({ id: 't1', status: 'PENDING' }),
       update: vi.fn().mockResolvedValue({ id: 't1', status: 'COMPLETED' }),
-    } as any)
-    const r = await svc.complete('t1', 'o1')
+    } as TaskRepository
+    const svc = new TaskService(repo)
+    const r = await svc.update({
+      taskId: 't1',
+      organizationId: 'o1',
+      status: 'COMPLETED',
+    })
     expect(r.status).toBe('COMPLETED')
   })
 })

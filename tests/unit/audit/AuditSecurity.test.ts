@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
+import { AuditService } from '../../../src/modules/audit/application/AuditService.js'
+import type { AuditRepository } from '../../../src/modules/audit/infrastructure/PostgresAuditRepository.js'
+import {
+  encodeCursor,
+  decodeCursor,
+} from '../../../src/shared/pagination/CursorEncoder.js'
 
-function mockRepo(overrides?: object) {
+function mockRepo(overrides?: object): AuditRepository {
   return {
     findById: vi.fn().mockResolvedValue({
       id: 'a1',
@@ -12,32 +18,26 @@ function mockRepo(overrides?: object) {
       created_at: new Date(),
     }),
     list: vi.fn().mockResolvedValue([]),
+    create: vi.fn().mockImplementation(async (d) => d),
     ...overrides,
-  } as any
+  } as AuditRepository
 }
 
 describe('Unit: Audit Security & Multi-tenancy', () => {
   it('audit events scoped by organization_id', async () => {
     const repo = mockRepo()
-    const { AuditService } =
-      await import('../../../src/modules/audit/application/AuditService.js')
     const svc = new AuditService(repo)
     await svc.getAuditEvent('a1', 'org1')
     expect(repo.findById).toHaveBeenCalledWith('a1', 'org1')
   })
 
   it('routes require OWNER or ADMIN', () => {
-    // preHandler: [requireRole('OWNER', 'ADMIN')]
     const allowed = ['OWNER', 'ADMIN', 'MEMBER']
     expect(allowed.includes('ADMIN')).toBe(true)
     expect(allowed.includes('MEMBER')).toBe(true)
   })
 
   it('cursor pagination uses signed cursors', () => {
-    const {
-      encodeCursor,
-      decodeCursor,
-    } = require('../../../src/shared/pagination/CursorEncoder.js')
     const cursor = encodeCursor({
       createdAt: new Date().toISOString(),
       id: 'a1',
@@ -48,8 +48,6 @@ describe('Unit: Audit Security & Multi-tenancy', () => {
 
   it('service creates audit with full data', async () => {
     const repo = mockRepo()
-    const { AuditService } =
-      await import('../../../src/modules/audit/application/AuditService.js')
     const svc = new AuditService(repo)
     const result = await svc.createAuditEvent({
       organizationId: 'org1',
@@ -73,8 +71,6 @@ describe('Unit: Audit Security & Multi-tenancy', () => {
 
   it('service throws NotFound for missing event', async () => {
     const repo = mockRepo({ findById: vi.fn().mockResolvedValue(null) })
-    const { AuditService } =
-      await import('../../../src/modules/audit/application/AuditService.js')
     const svc = new AuditService(repo)
     await expect(svc.getAuditEvent('missing', 'org1')).rejects.toThrow('Audit')
   })

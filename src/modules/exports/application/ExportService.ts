@@ -41,6 +41,7 @@ export class ExportService {
       organizationId: input.organizationId,
       actorId: input.actorId,
       type: input.type,
+      status: 'PENDING',
     }
   }
 

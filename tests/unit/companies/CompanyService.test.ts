@@ -1,14 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createCompanyService } from '../../../src/modules/companies/application/CompanyService.js'
+import { CompanyService } from '../../../src/modules/companies/application/CompanyService.js'
+import type { CompanyRepository } from '../../../src/modules/companies/infrastructure/PostgresCompanyRepository.js'
 
 describe('Unit: CompanyService', () => {
   it('create and find', async () => {
-    const svc = createCompanyService({
+    const repo = {
       create: vi.fn().mockResolvedValue({ id: 'c1', name: 'Co' }),
       findById: vi.fn().mockResolvedValue({ id: 'c1' }),
-    } as any)
-    expect(
-      (await svc.create({ id: 'c1', organizationId: 'o1', name: 'Co' })).name,
-    ).toBe('Co')
+    } as CompanyRepository
+    const svc = new CompanyService(repo)
+    expect((await svc.create({ organizationId: 'o1', name: 'Co' })).name).toBe(
+      'Co',
+    )
   })
 })

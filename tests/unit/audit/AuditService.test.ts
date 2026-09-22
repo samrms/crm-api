@@ -1,12 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createAuditService } from '../../../src/modules/audit/application/AuditService.js'
+import { AuditService } from '../../../src/modules/audit/application/AuditService.js'
+import type { AuditRepository } from '../../../src/modules/audit/infrastructure/PostgresAuditRepository.js'
 
 describe('Unit: AuditService', () => {
   it('records audit', async () => {
-    const svc = createAuditService({
+    const repo = {
       create: vi.fn().mockResolvedValue({ id: 'a1' }),
-    } as any)
-    const r = await svc.record({
+    } as AuditRepository
+    const svc = new AuditService(repo)
+    const r = await svc.createAuditEvent({
       organizationId: 'o1',
       actorId: 'u1',
       action: 'CREATE',

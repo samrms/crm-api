@@ -1,12 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createExportService } from '../../../src/modules/exports/application/ExportService.js'
+import { ExportService } from '../../../src/modules/exports/application/ExportService.js'
+import type { ExportRepository } from '../../../src/modules/exports/infrastructure/PostgresExportRepository.js'
+import type { Kysely, Database } from '../../../src/shared/database/types.js'
 
 describe('Unit: ExportService', () => {
   it('create export', async () => {
-    const svc = createExportService({
-      create: vi.fn().mockResolvedValue({ id: 'exp1', status: 'PENDING' }),
-    } as any)
-    const r = await svc.create({
+    const repo = {
+      create: vi.fn().mockResolvedValue({ id: 'exp1' }),
+      findById: vi.fn(),
+      updateStatus: vi.fn(),
+    } as ExportRepository
+    const db = {
+      transaction: () => ({
+        execute: async (fn: (...args: unknown[]) => unknown) =>
+          await fn({
+            insertInto: () => ({ values: () => ({ execute: async () => {} }) }),
+          }),
+      }),
+    } as unknown as Kysely<Database>
+    const svc = new ExportService(db, repo)
+    const r = await svc.createExport({
       organizationId: 'o1',
       actorId: 'u1',
       type: 'DEALS',
