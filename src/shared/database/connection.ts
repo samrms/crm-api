@@ -1,14 +1,14 @@
-import { Kysely, PostgresDialect, SqliteDialect } from 'kysely'
+import { Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
-import SqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabase from 'better-sqlite3'
 import { config } from '@/shared/config.js'
 import { logger } from '@/shared/logging/logger.js'
-import type { Database } from './types.js'
+import type { Database as AppDatabase } from './types.js'
 
 const { Pool } = pg
 
 let pool: pg.Pool | null = null
-let db: Kysely<Database> | null = null
+let db: Kysely<AppDatabase> | null = null
+let testDb: Kysely<AppDatabase> | null = null
 
 function isSqlite(url: string): boolean {
   return (
@@ -18,6 +18,10 @@ function isSqlite(url: string): boolean {
     url.includes('.db') ||
     url.includes('.sqlite')
   )
+}
+
+export function setTestDb(database: Kysely<AppDatabase> | null) {
+  testDb = database
 }
 
 export function getPool(): pg.Pool {
@@ -33,35 +37,30 @@ export function getPool(): pg.Pool {
   return pool
 }
 
-export function getDb(): Kysely<Database> {
-  if (!db) {
-    if (isSqlite(config.databaseUrl)) {
-      db = new Kysely<Database>({
-        dialect: new SqliteDialect({
-          database:
-            new SqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabaseSqliteDatabase(
-              config.databaseUrl.replace('sqlite://', '') || ':memory:',
-            ),
-        }),
-      })
-      logger.info('DB: SQLite mode (in-memory/file)')
-    } else {
-      db = new Kysely<Database>({
-        dialect: new PostgresDialect({ pool: getPool() }),
-      })
-      logger.info('DB: PostgreSQL mode')
-    }
+export function getDb(): Kysely<AppDatabase> {
+  if (testDb) return testDb
+  if (db) return db
+  if (isSqlite(config.databaseUrl)) {
+    throw new Error(
+      'SQLite DATABASE_URL is only supported in tests. Use testDatabase.ts for tests or Postgres for server.',
+    )
   }
+  db = new Kysely<AppDatabase>({
+    dialect: new PostgresDialect({ pool: getPool() }),
+  })
+  logger.info('DB: PostgreSQL mode')
   return db
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (db) {
-    await db.destroy()
-    db = null
-  }
-  if (pool) {
-    await pool.end()
-    pool = null
+  if (testDb) testDb = null
+  const closingDb = db
+  const closingPool = pool
+  db = null
+  pool = null
+  if (closingDb) {
+    await closingDb.destroy()
+  } else if (closingPool) {
+    await closingPool.end()
   }
 }

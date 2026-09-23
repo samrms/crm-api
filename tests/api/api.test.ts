@@ -41,6 +41,17 @@ describe('API Tests', () => {
       })
     })
 
+    it('GET / returns landing links', async () => {
+      const res = await app.inject({ method: 'GET', url: '/' })
+      expect(res.statusCode).toBe(200)
+      expect(JSON.parse(res.payload)).toEqual({
+        status: 'ok',
+        name: 'CRM API',
+        docs: '/docs',
+        health: '/health',
+      })
+    })
+
     it('GET /ready returns ready', async () => {
       const res = await app.inject({ method: 'GET', url: '/ready' })
       expect(res.statusCode).toBe(200)

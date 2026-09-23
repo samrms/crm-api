@@ -20,7 +20,10 @@ async function start() {
     process.exit(1)
   }
 
+  let shuttingDown = false
   const shutdown = async (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
     logger.info({ signal }, 'Shutting down...')
     await app.close()
     await closeDatabase()

@@ -7,6 +7,12 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
       .send({ status: 'ok', timestamp: new Date().toISOString() })
   })
 
+  app.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply
+      .status(200)
+      .send({ status: 'ok', name: 'CRM API', docs: '/docs', health: '/health' })
+  })
+
   app.get('/ready', async (_request: FastifyRequest, reply: FastifyReply) => {
     const checks: Record<string, string> = {}
 
