@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely'
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import { PostgresCompanyRepository } from '@/modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 import { PostgresContactRepository } from '@/modules/crm/contacts/infrastructure/PostgresContactRepository.js'
 import { PostgresDealRepository } from '@/modules/crm/deals/infrastructure/PostgresDealRepository.js'
@@ -10,6 +10,7 @@ import {
   NotFoundError,
 } from '@/shared/errors/AppError.js'
 import type { Database } from '@/shared/database/types.js'
+import { publishOutboxEvent } from '@/shared/database/outbox.js'
 import type { LeadsTable } from '@/shared/database/types.js'
 
 export interface ConvertLeadInput {
@@ -59,7 +60,7 @@ export class ConvertLead {
         throw new NotFoundError('Lead', leadId)
       }
 
-      const lead = leadRow as unknown as LeadsTable
+      const lead: LeadsTable = leadRow
 
       if (!canTransitionLead(lead.status, 'CONVERTED')) {
         throw new ValidationError(
@@ -75,7 +76,7 @@ export class ConvertLead {
       let company = await companyRepo.findByName(companyName, organizationId)
       if (!company) {
         company = await companyRepo.create({
-          id: `co_${nanoid(12)}`,
+          id: newId('co'),
           organizationId,
           name: companyName,
         })
@@ -88,7 +89,7 @@ export class ConvertLead {
       )
       if (!contact) {
         contact = await contactRepo.create({
-          id: `ct_${nanoid(12)}`,
+          id: newId('ct'),
           organizationId,
           companyId: company.id,
           email: lead.email,
@@ -100,7 +101,7 @@ export class ConvertLead {
       const dealTitle =
         input.dealTitle ?? `Deal from lead: ${lead.firstName} ${lead.lastName}`
       const deal = await dealRepo.create({
-        id: `dl_${nanoid(12)}`,
+        id: newId('dl'),
         organizationId,
         title: dealTitle,
         companyId: company.id,
@@ -136,7 +137,7 @@ export class ConvertLead {
       await trx
         .insertInto('audit_events')
         .values({
-          id: `aud_${nanoid(12)}`,
+          id: newId('aud'),
           organization_id: organizationId,
           actor_id: input.actorId,
           action: 'LEAD_CONVERTED',
@@ -152,21 +153,16 @@ export class ConvertLead {
         })
         .execute()
 
-      await trx
-        .insertInto('outbox_events')
-        .values({
-          id: `ob_${nanoid(12)}`,
-          organization_id: organizationId,
-          type: 'LEAD_CONVERTED',
-          payload: {
-            leadId,
-            dealId: deal.id,
-            companyId: company.id,
-            contactId: contact.id,
-          },
-          created_at: new Date(),
-        })
-        .execute()
+      await publishOutboxEvent(trx, {
+        organizationId,
+        type: 'LEAD_CONVERTED',
+        payload: {
+          leadId,
+          dealId: deal.id,
+          companyId: company.id,
+          contactId: contact.id,
+        },
+      })
 
       return {
         lead: { id: lead.id, status: 'CONVERTED' },

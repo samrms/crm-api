@@ -7,7 +7,7 @@ import type { ImportService } from '@/modules/bulk/imports/application/ImportSer
 import { config } from '@/shared/config.js'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 
 const importSchema = z.object({
   type: z.enum(['companies', 'contacts', 'leads']),
@@ -30,7 +30,7 @@ export class ImportRoutes {
         const body = importSchema.parse(request.body)
         const orgId = request.auth!.organizationId
 
-        const filePath = join(config.storageDir, `import_${nanoid(12)}.csv`)
+        const filePath = join(config.storageDir, `${newId('import')}.csv`)
         mkdirSync(config.storageDir, { recursive: true })
 
         const imp = await this.service.createImport({

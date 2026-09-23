@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely'
 import type { Database } from '@/shared/database/types.js'
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
+import { publishOutboxEvent } from '@/shared/database/outbox.js'
 import {
   PostgresImportRepository,
   type ImportRepository,
@@ -20,22 +21,17 @@ export class ImportService {
     private readonly repo: ImportRepository,
   ) {}
   async createImport(input: CreateImportInput) {
-    const id = `imp_${nanoid(12)}`
+    const id = newId('imp')
 
     const result = await this.db.transaction().execute(async (trx) => {
       const repo = new PostgresImportRepository(trx)
       const imp = await repo.create({ ...input, id })
 
-      await trx
-        .insertInto('outbox_events')
-        .values({
-          id: `ob_${nanoid(12)}`,
-          organization_id: input.organizationId,
-          type: 'IMPORT_CREATED',
-          payload: { importId: id, type: input.type },
-          created_at: new Date(),
-        })
-        .execute()
+      await publishOutboxEvent(trx, {
+        organizationId: input.organizationId,
+        type: 'IMPORT_CREATED',
+        payload: { importId: id, type: input.type },
+      })
 
       return imp
     })

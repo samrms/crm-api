@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import { ZodError } from 'zod'
 import { AppError } from '@/shared/errors/AppError.js'
 import { logger } from '@/shared/logging/logger.js'
 
@@ -10,6 +11,17 @@ export async function errorHandlerPlugin(app: FastifyInstance): Promise<void> {
       reply: FastifyReply,
     ) => {
       const requestId = request.id
+
+      if (error instanceof ZodError) {
+        return reply.status(422).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            requestId,
+            details: error.issues,
+          },
+        })
+      }
 
       if (error instanceof AppError) {
         const payload: Record<string, unknown> = {

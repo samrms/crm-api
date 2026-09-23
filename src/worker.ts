@@ -1,14 +1,11 @@
 import { Worker, type Job } from 'bullmq'
-import { Redis } from 'ioredis'
-import { config } from './shared/config.js'
+import { getRedis } from './shared/cache/redis.js'
 import { logger } from './shared/logging/logger.js'
 import { getDb, closeDatabase } from './shared/database/connection.js'
 import { PostgresImportRepository } from './modules/bulk/imports/infrastructure/PostgresImportRepository.js'
 import { PostgresExportRepository } from './modules/bulk/exports/infrastructure/PostgresExportRepository.js'
 
-const connection = new Redis(config.redisUrl, {
-  maxRetriesPerRequest: null,
-})
+const connection = getRedis({ maxRetriesPerRequest: null, lazyConnect: false })
 
 interface ImportJobData {
   importId: string
@@ -107,7 +104,10 @@ worker.on('failed', (job, err) => {
   )
 })
 
+let shuttingDown = false
 async function shutdown(signal: string) {
+  if (shuttingDown) return
+  shuttingDown = true
   logger.info({ signal }, 'Worker shutting down')
   await worker.close()
   await connection.quit()

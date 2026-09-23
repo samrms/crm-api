@@ -4,11 +4,16 @@ import { logger } from '@/shared/logging/logger.js'
 
 let redis: Redis | null = null
 
-export function getRedis(): Redis {
+export function getRedis(
+  options: {
+    maxRetriesPerRequest?: number | null
+    lazyConnect?: boolean
+  } = {},
+): Redis {
   if (!redis) {
     redis = new Redis(config.redisUrl, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
+      maxRetriesPerRequest: options.maxRetriesPerRequest ?? 3,
+      lazyConnect: options.lazyConnect ?? true,
       enableReadyCheck: true,
     })
     redis.on('error', (err: Error) => {

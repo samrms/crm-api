@@ -49,12 +49,6 @@ export class ValidationError extends AppError {
   }
 }
 
-export class TooManyRequestsError extends AppError {
-  constructor(message = 'Too many requests') {
-    super({ statusCode: 429, code: 'RATE_LIMITED', message })
-  }
-}
-
 export class OptimisticLockError extends AppError {
   constructor(resource: string) {
     super({

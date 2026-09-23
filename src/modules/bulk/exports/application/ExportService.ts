@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely'
 import type { Database } from '@/shared/database/types.js'
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
+import { publishOutboxEvent } from '@/shared/database/outbox.js'
 import {
   PostgresExportRepository,
   type ExportRepository,
@@ -20,33 +21,27 @@ export class ExportService {
   ) {}
 
   async createExport(input: CreateExportInput) {
-    const id = `exp_${nanoid(12)}`
-    await this.db.transaction().execute(async (trx) => {
+    const id = newId('exp')
+
+    const result = await this.db.transaction().execute(async (trx) => {
       const repo = new PostgresExportRepository(trx)
-      await repo.create({
+      const exp = await repo.create({
         id,
         organizationId: input.organizationId,
         actorId: input.actorId,
         type: input.type,
       })
-      await trx
-        .insertInto('outbox_events')
-        .values({
-          id: `ob_${nanoid(12)}`,
-          organization_id: input.organizationId,
-          type: 'EXPORT_CREATED',
-          payload: { exportId: id, type: input.type },
-          created_at: new Date(),
-        })
-        .execute()
+
+      await publishOutboxEvent(trx, {
+        organizationId: input.organizationId,
+        type: 'EXPORT_CREATED',
+        payload: { exportId: id, type: input.type },
+      })
+
+      return exp
     })
-    return {
-      id,
-      organizationId: input.organizationId,
-      actorId: input.actorId,
-      type: input.type,
-      status: 'PENDING',
-    }
+
+    return result
   }
 
   async getExport(id: string, organizationId: string) {
