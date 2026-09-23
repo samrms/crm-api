@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
@@ -17,26 +17,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": false,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@shared/*": ["src/shared/*"],
-      "@audit/*": ["src/modules/audit/*"],
-      "@users/*": ["src/modules/users/*"],
-      "@companies/*": ["src/modules/companies/*"],
-      "@contacts/*": ["src/modules/contacts/*"],
-      "@deals/*": ["src/modules/deals/*"],
-      "@exports/*": ["src/modules/exports/*"],
-      "@imports/*": ["src/modules/imports/*"],
-      "@leads/*": ["src/modules/leads/*"],
-      "@members/*": ["src/modules/members/*"],
-      "@organizations/*": ["src/modules/organizations/*"],
-      "@tasks/*": ["src/modules/tasks/*"],
-    },
+      "@shared/*": ["src/shared/*"]
+    }
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "tests"],
+  "exclude": ["node_modules", "dist", "tests"]
 }

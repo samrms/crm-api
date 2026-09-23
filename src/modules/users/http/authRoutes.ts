@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import type { AuthService } from '@users/application/auth.js'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import type { AuthService } from '@/modules/users/application/auth.js'
 import { setSessionCookie, clearSessionCookie } from '@/shared/auth/session.js'
 import { authenticate } from '@/shared/auth/authenticate.js'
 
@@ -21,6 +22,13 @@ export class AuthRoutes {
   async register(app: FastifyInstance): Promise<void> {
     app.post(
       '/api/v1/auth/register',
+      {
+        schema: {
+          tags: ['Auth'],
+          summary: 'Register a new organization and owner',
+          body: zodToJsonSchema(registerSchema, { target: 'openApi3' }),
+        },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = registerSchema.parse(request.body)
         const result = await this.service.register(body)
@@ -40,6 +48,13 @@ export class AuthRoutes {
 
     app.post(
       '/api/v1/auth/login',
+      {
+        schema: {
+          tags: ['Auth'],
+          summary: 'Login',
+          body: zodToJsonSchema(loginSchema, { target: 'openApi3' }),
+        },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = loginSchema.parse(request.body)
         const result = await this.service.login(body)
@@ -59,7 +74,10 @@ export class AuthRoutes {
 
     app.post(
       '/api/v1/auth/logout',
-      { preHandler: [authenticate] },
+      {
+        preHandler: [authenticate],
+        schema: { tags: ['Auth'], summary: 'Logout (revoke session)' },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const token = request.cookies?.session
         if (token) {
@@ -72,7 +90,10 @@ export class AuthRoutes {
 
     app.get(
       '/api/v1/auth/me',
-      { preHandler: [authenticate] },
+      {
+        preHandler: [authenticate],
+        schema: { tags: ['Auth'], summary: 'Get current user' },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const result = await this.service.getMe(
           request.auth!.userId,

@@ -12,23 +12,11 @@ export async function createTestOrganization(
   const id = overrides.id ?? `org_${nanoid(12)}`
   const name = overrides.name ?? `Test Org ${nanoid(6)}`
   const slug =
-    overrides.slug ??
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-
+    overrides.slug ?? `${id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
   await db
     .insertInto('organizations')
-    .values({
-      id,
-      name,
-      slug,
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
+    .values({ id, name, slug, created_at: new Date(), updated_at: new Date() })
     .execute()
-
   currentOrgId = id
   return { id, name, slug }
 }
@@ -47,7 +35,6 @@ export async function createTestUser(
   const name = overrides.name ?? 'Test User'
   const password = overrides.password ?? 'password123'
   const passwordHash = await hashPassword(password)
-
   await db
     .insertInto('users')
     .values({
@@ -59,7 +46,6 @@ export async function createTestUser(
       updated_at: new Date(),
     })
     .execute()
-
   currentUserId = id
   return { id, email, name, password }
 }
@@ -79,7 +65,6 @@ export async function createTestMembership(
     currentOrgId ??
     (await createTestOrganization()).id
   const role = overrides.role ?? 'OWNER'
-
   await db
     .insertInto('memberships')
     .values({
@@ -91,7 +76,6 @@ export async function createTestMembership(
       updated_at: new Date(),
     })
     .execute()
-
   return { userId, organizationId, role }
 }
 
@@ -103,7 +87,6 @@ export async function createTestSession(
   const sessionId = `sess_${nanoid(12)}`
   const token = nanoid(32)
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
   await db
     .insertInto('sessions')
     .values({
@@ -115,7 +98,6 @@ export async function createTestSession(
       created_at: new Date(),
     })
     .execute()
-
   return { sessionId, token, expiresAt }
 }
 
@@ -125,7 +107,6 @@ export async function createTestCompany(
 ) {
   const db = getTestDb()
   const id = overrides.id ?? `co_${nanoid(12)}`
-
   await db
     .insertInto('companies')
     .values({
@@ -137,7 +118,6 @@ export async function createTestCompany(
       updated_at: new Date(),
     })
     .execute()
-
   return { id, organizationId, name: overrides.name }
 }
 
@@ -152,7 +132,6 @@ export async function createTestContact(
 ) {
   const db = getTestDb()
   const id = `ct_${nanoid(12)}`
-
   await db
     .insertInto('contacts')
     .values({
@@ -166,7 +145,6 @@ export async function createTestContact(
       updated_at: new Date(),
     })
     .execute()
-
   return { id, organizationId, companyId }
 }
 
@@ -181,7 +159,6 @@ export async function createTestLead(
 ) {
   const db = getTestDb()
   const id = `ld_${nanoid(12)}`
-
   await db
     .insertInto('leads')
     .values({
@@ -196,7 +173,6 @@ export async function createTestLead(
       updated_at: new Date(),
     })
     .execute()
-
   return { id, organizationId }
 }
 
@@ -211,7 +187,6 @@ export async function createTestDeal(
 ) {
   const db = getTestDb()
   const id = `dl_${nanoid(12)}`
-
   await db
     .insertInto('deals')
     .values({
@@ -226,7 +201,6 @@ export async function createTestDeal(
       updated_at: new Date(),
     })
     .execute()
-
   return { id, organizationId }
 }
 

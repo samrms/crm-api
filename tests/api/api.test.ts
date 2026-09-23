@@ -4,7 +4,6 @@ import type { FastifyInstance } from 'fastify'
 import {
   startTestDatabase,
   stopTestDatabase,
-  getTestDb,
 } from '../fixtures/testDatabase.js'
 import {
   createTestOrganization,
@@ -72,9 +71,12 @@ describe('API Tests', () => {
       expect(body.data.organization.name).toBe('New Org')
 
       // Cookie should be set
-      const cookie = res.headers['set-cookie']
-      expect(cookie).toBeDefined()
-      expect(cookie?.[0]).toContain('session=')
+      const setCookie = res.headers['set-cookie']
+      const cookieHeader = Array.isArray(setCookie)
+        ? setCookie.join('; ')
+        : setCookie
+      expect(cookieHeader).toBeDefined()
+      expect(cookieHeader).toContain('session=')
     })
 
     it('rejects duplicate email', async () => {
@@ -558,7 +560,6 @@ describe('API Tests', () => {
       })
       const deal = JSON.parse(createRes.payload).data
 
-      // NEW stage: win/lose should not be available
       expect(deal._links.win).toBeDefined()
       expect(deal._links.lose).toBeDefined()
 
@@ -706,25 +707,30 @@ describe('API Tests', () => {
 
   describe('Rate Limiting', () => {
     it('enforces rate limit', async () => {
-      const org = await createTestOrganization()
-      const user = await createTestUser()
-      await createTestMembership({ userId: user.id, organizationId: org.id })
-      const { token } = await createTestSession(user.id, org.id)
+      const limitedApp = await buildApp({
+        rateLimit: { max: 3, timeWindow: '1 minute' },
+      })
+      await limitedApp.ready()
 
-      // Make 101 requests quickly
-      for (let i = 0; i < 101; i++) {
-        const res = await app.inject({
-          method: 'GET',
-          url: '/api/v1/companies',
-          cookies: { session: token },
-        })
-        if (i === 100) {
-          expect(res.statusCode).toBe(429)
+      try {
+        const statuses: number[] = []
+        let lastBody = ''
+        for (let i = 0; i < 4; i++) {
+          const res = await limitedApp.inject({
+            method: 'GET',
+            url: '/health',
+          })
+          statuses.push(res.statusCode)
+          lastBody = res.payload
         }
+
+        expect(statuses).toEqual([200, 200, 200, 429])
+        expect(JSON.parse(lastBody).error.code).toBe('RATE_LIMITED')
+      } finally {
+        await limitedApp.close()
       }
     })
   })
-
   describe('Error Contract', () => {
     let authCookie: string
 
@@ -762,6 +768,26 @@ describe('API Tests', () => {
       const body = JSON.parse(res.payload)
       expect(body.error.code).toBe('VALIDATION_ERROR')
       expect(body.error.details).toBeDefined()
+    })
+  })
+
+  describe('Docs', () => {
+    it('GET /docs/ serves the Swagger UI', async () => {
+      const res = await app.inject({ method: 'GET', url: '/docs/' })
+      expect(res.statusCode).toBe(200)
+      expect(res.headers['content-type']).toContain('text/html')
+    })
+
+    it('GET /docs/json serves the OpenAPI document', async () => {
+      const res = await app.inject({ method: 'GET', url: '/docs/json' })
+      expect(res.statusCode).toBe(200)
+      const spec = JSON.parse(res.payload)
+      expect(spec.openapi).toMatch(/^3\./)
+      expect(spec.paths['/api/v1/companies'].post.requestBody).toBeDefined()
+      expect(spec.paths['/api/v1/auth/login'].post.requestBody).toBeDefined()
+      expect(
+        spec.paths['/api/v1/leads/{id}/convert'].post.requestBody,
+      ).toBeDefined()
     })
   })
 })

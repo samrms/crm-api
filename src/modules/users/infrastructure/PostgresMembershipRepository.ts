@@ -29,7 +29,7 @@ export interface MembershipRepository {
 }
 
 export class PostgresMembershipRepository implements MembershipRepository {
-  constructor(private readonly db: Kysely<Database>) {}
+  constructor(protected readonly db: Kysely<Database>) {}
 
   async findByUserAndOrg(
     userId: string,
@@ -37,6 +37,7 @@ export class PostgresMembershipRepository implements MembershipRepository {
   ): Promise<MembershipRow | undefined> {
     const row = await this.db
       .selectFrom('memberships')
+      .selectAll()
       .where('user_id', '=', userId)
       .where('organization_id', '=', organizationId)
       .executeTakeFirst()
@@ -68,6 +69,7 @@ export class PostgresMembershipRepository implements MembershipRepository {
   async findByUserId(userId: string): Promise<MembershipRow[]> {
     const rows = await this.db
       .selectFrom('memberships')
+      .selectAll()
       .where('user_id', '=', userId)
       .execute()
     return rows as MembershipRow[]
@@ -76,6 +78,7 @@ export class PostgresMembershipRepository implements MembershipRepository {
   async findByOrganizationId(organizationId: string): Promise<MembershipRow[]> {
     const rows = await this.db
       .selectFrom('memberships')
+      .selectAll()
       .where('organization_id', '=', organizationId)
       .execute()
     return rows as MembershipRow[]

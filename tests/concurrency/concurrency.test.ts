@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from 'vitest'
 import { buildApp } from '../../src/app.js'
 import type { FastifyInstance } from 'fastify'
 import {
@@ -11,11 +19,10 @@ import {
   createTestUser,
   createTestMembership,
   createTestSession,
-  createTestCompany,
-  createTestDeal,
   cleanupTestData,
 } from '../fixtures/factories.js'
-import { PostgresDealRepository } from '../../src/modules/deals/infrastructure/PostgresDealRepository.js'
+import { PostgresDealRepository } from '../../src/modules/crm/deals/infrastructure/PostgresDealRepository.js'
+import { DealService } from '../../src/modules/crm/deals/application/DealService.js'
 import { OptimisticLockError } from '../../src/shared/errors/AppError.js'
 
 let app: FastifyInstance
@@ -59,7 +66,7 @@ describe('Concurrency Tests', () => {
         method: 'POST',
         url: '/api/v1/deals',
         payload: { title: 'Concurrent Deal', value: 10000 },
-        headers: { cookie: token1 },
+        cookies: { session: token1 },
       })
       const deal = JSON.parse(createRes.payload).data
 
@@ -69,13 +76,13 @@ describe('Concurrency Tests', () => {
           method: 'POST',
           url: `/api/v1/deals/${deal.id}/advance`,
           payload: { stage: 'QUALIFIED' },
-          headers: { cookie: token1 },
+          cookies: { session: token1 },
         }),
         app.inject({
           method: 'POST',
           url: `/api/v1/deals/${deal.id}/advance`,
           payload: { stage: 'QUALIFIED' },
-          headers: { cookie: token2 },
+          cookies: { session: token2 },
         }),
       ])
 
@@ -90,9 +97,9 @@ describe('Concurrency Tests', () => {
       expect(conflictCount).toBe(1)
     })
 
-    it('repository-level concurrent updates throw OptimisticLockError', async () => {
+    it('stale repository update reports failure and the service maps it to OptimisticLockError', async () => {
       const org = await createTestOrganization()
-      const repo = new PostgresDealRepository()
+      const repo = new PostgresDealRepository(getTestDb())
 
       const deal = await repo.create({
         id: 'dl_concurrent',
@@ -100,14 +107,22 @@ describe('Concurrency Tests', () => {
         title: 'Concurrent Deal',
       })
 
-      // First update succeeds
-      const updated1 = await repo.updateStage(deal.id, org.id, 'QUALIFIED', 1)
-      expect(updated1).toBeDefined()
-      expect(updated1!.version).toBe(2)
+      const updated = await repo.updateStage(deal.id, org.id, 'QUALIFIED', 1)
+      expect(updated).toBeDefined()
+      expect(updated!.version).toBe(2)
 
-      // Second update with stale version fails
+      const stale = await repo.updateStage(deal.id, org.id, 'PROPOSAL', 1)
+      expect(stale).toBeUndefined()
+
+      vi.spyOn(repo, 'findById').mockResolvedValue({
+        ...deal,
+        stage: 'QUALIFIED',
+        version: 1,
+      })
+
+      const service = new DealService(repo)
       await expect(
-        repo.updateStage(deal.id, org.id, 'PROPOSAL', 1),
+        service.advance(deal.id, org.id, 'PROPOSAL'),
       ).rejects.toThrow(OptimisticLockError)
     })
   })
@@ -140,6 +155,7 @@ describe('Concurrency Tests', () => {
       async function processImport() {
         const existing = await db
           .selectFrom('imports')
+          .selectAll()
           .where('id', '=', importId)
           .executeTakeFirst()
 
@@ -176,14 +192,12 @@ describe('Concurrency Tests', () => {
       }
 
       // Run twice concurrently
-      const [result1, result2] = await Promise.all([
-        processImport(),
-        processImport(),
-      ])
+      await Promise.all([processImport(), processImport()])
 
       // One should succeed, one should be skipped
       const completed = await db
         .selectFrom('imports')
+        .selectAll()
         .where('id', '=', importId)
         .executeTakeFirst()
 
@@ -214,6 +228,7 @@ describe('Concurrency Tests', () => {
       async function processExport() {
         const existing = await db
           .selectFrom('exports')
+          .selectAll()
           .where('id', '=', exportId)
           .executeTakeFirst()
 
@@ -245,13 +260,11 @@ describe('Concurrency Tests', () => {
         return { skipped: false }
       }
 
-      const [result1, result2] = await Promise.all([
-        processExport(),
-        processExport(),
-      ])
+      await Promise.all([processExport(), processExport()])
 
       const completed = await db
         .selectFrom('exports')
+        .selectAll()
         .where('id', '=', exportId)
         .executeTakeFirst()
 
@@ -275,7 +288,7 @@ describe('Concurrency Tests', () => {
             method: 'POST',
             url: '/api/v1/companies',
             payload: { name: 'Concurrent Company' },
-            headers: { cookie: token },
+            cookies: { session: token },
           }),
         )
 
@@ -293,6 +306,7 @@ describe('Concurrency Tests', () => {
       const db = getTestDb()
       const companies = await db
         .selectFrom('companies')
+        .selectAll()
         .where('organization_id', '=', org.id)
         .where('name', '=', 'Concurrent Company')
         .execute()
@@ -318,7 +332,7 @@ describe('Concurrency Tests', () => {
           firstName: 'Convert',
           lastName: 'Test',
         },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
       const lead = JSON.parse(leadRes.payload).data
 
@@ -326,12 +340,12 @@ describe('Concurrency Tests', () => {
       await app.inject({
         method: 'POST',
         url: `/api/v1/leads/${lead.id}/qualify`,
-        headers: { cookie: token },
+        cookies: { session: token },
       })
       await app.inject({
         method: 'POST',
         url: `/api/v1/leads/${lead.id}/qualify`,
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       // Try to convert twice concurrently
@@ -340,13 +354,13 @@ describe('Concurrency Tests', () => {
           method: 'POST',
           url: `/api/v1/leads/${lead.id}/convert`,
           payload: { dealTitle: 'Deal 1' },
-          headers: { cookie: token },
+          cookies: { session: token },
         }),
         app.inject({
           method: 'POST',
           url: `/api/v1/leads/${lead.id}/convert`,
           payload: { dealTitle: 'Deal 2' },
-          headers: { cookie: token },
+          cookies: { session: token },
         }),
       ])
 
@@ -365,6 +379,7 @@ describe('Concurrency Tests', () => {
       const db = getTestDb()
       const deals = await db
         .selectFrom('deals')
+        .selectAll()
         .where('leadId', '=', lead.id)
         .execute()
 

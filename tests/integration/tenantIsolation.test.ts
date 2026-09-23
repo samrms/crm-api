@@ -7,11 +7,7 @@ import {
 import {
   createTestOrganization,
   createTestUser,
-  createTestMembership,
   createTestCompany,
-  createTestContact,
-  createTestLead,
-  createTestDeal,
   cleanupTestData,
 } from '../fixtures/factories.js'
 
@@ -58,11 +54,13 @@ describe('Integration: Tenant Isolation', () => {
 
     const orgACompanies = await db
       .selectFrom('companies')
+      .selectAll()
       .where('organization_id', '=', orgA.id)
       .execute()
 
     const orgBCompanies = await db
       .selectFrom('companies')
+      .selectAll()
       .where('organization_id', '=', orgB.id)
       .execute()
 
@@ -111,11 +109,13 @@ describe('Integration: Tenant Isolation', () => {
 
     const orgAContacts = await db
       .selectFrom('contacts')
+      .selectAll()
       .where('organization_id', '=', orgA.id)
       .execute()
 
     const orgBContacts = await db
       .selectFrom('contacts')
+      .selectAll()
       .where('organization_id', '=', orgB.id)
       .execute()
 
@@ -163,11 +163,13 @@ describe('Integration: Tenant Isolation', () => {
 
     const orgALeads = await db
       .selectFrom('leads')
+      .selectAll()
       .where('organization_id', '=', orgA.id)
       .execute()
 
     const orgBLeads = await db
       .selectFrom('leads')
+      .selectAll()
       .where('organization_id', '=', orgB.id)
       .execute()
 
@@ -211,11 +213,13 @@ describe('Integration: Tenant Isolation', () => {
 
     const orgADeals = await db
       .selectFrom('deals')
+      .selectAll()
       .where('organization_id', '=', orgA.id)
       .execute()
 
     const orgBDeals = await db
       .selectFrom('deals')
+      .selectAll()
       .where('organization_id', '=', orgB.id)
       .execute()
 
@@ -259,11 +263,13 @@ describe('Integration: Tenant Isolation', () => {
 
     const orgAImports = await db
       .selectFrom('imports')
+      .selectAll()
       .where('organization_id', '=', orgA.id)
       .execute()
 
     const orgBImports = await db
       .selectFrom('imports')
+      .selectAll()
       .where('organization_id', '=', orgB.id)
       .execute()
 

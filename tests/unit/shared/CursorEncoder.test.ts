@@ -4,8 +4,6 @@ import {
   decodeCursor,
 } from '../../../src/shared/pagination/CursorEncoder.ts'
 
-process.env.SESSION_SECRET = 'test-secret-key-for-cursor-signing'
-
 describe('CursorEncoder', () => {
   it('encodes and decodes cursor', () => {
     const data = { createdAt: '2024-01-15T10:30:00Z', id: 'co_abc123' }

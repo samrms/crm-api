@@ -20,6 +20,7 @@ export class PostgresUserRepository implements UserRepository {
   async findById(id: string): Promise<UserRow | undefined> {
     const row = await this.db
       .selectFrom('users')
+      .selectAll()
       .where('id', '=', id)
       .where('deleted_at', 'is', null)
       .executeTakeFirst()
@@ -29,6 +30,7 @@ export class PostgresUserRepository implements UserRepository {
   async findByEmail(email: string): Promise<UserRow | undefined> {
     const row = await this.db
       .selectFrom('users')
+      .selectAll()
       .where('email', '=', email)
       .where('deleted_at', 'is', null)
       .executeTakeFirst()

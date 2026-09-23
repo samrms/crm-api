@@ -3,8 +3,8 @@ import { Redis } from 'ioredis'
 import { config } from './shared/config.js'
 import { logger } from './shared/logging/logger.js'
 import { getDb, closeDatabase } from './shared/database/connection.js'
-import { PostgresImportRepository } from './modules/imports/infrastructure/PostgresImportRepository.js'
-import { PostgresExportRepository } from './modules/exports/infrastructure/PostgresExportRepository.js'
+import { PostgresImportRepository } from './modules/bulk/imports/infrastructure/PostgresImportRepository.js'
+import { PostgresExportRepository } from './modules/bulk/exports/infrastructure/PostgresExportRepository.js'
 
 const connection = new Redis(config.redisUrl, {
   maxRetriesPerRequest: null,

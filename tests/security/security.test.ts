@@ -56,7 +56,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/api/v1/companies/${companyA.id}`,
-        headers: { cookie: tokenB },
+        cookies: { session: tokenB },
       })
 
       expect(res.statusCode).toBe(404)
@@ -66,7 +66,6 @@ describe('Security Tests', () => {
       const orgA = await createTestOrganization()
       const userA = await createTestUser()
       await createTestMembership({ userId: userA.id, organizationId: orgA.id })
-      const { token: tokenA } = await createTestSession(userA.id, orgA.id)
 
       const orgB = await createTestOrganization()
       const userB = await createTestUser()
@@ -81,7 +80,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/api/v1/contacts/${contactA.id}`,
-        headers: { cookie: tokenB },
+        cookies: { session: tokenB },
       })
 
       expect(res.statusCode).toBe(404)
@@ -91,7 +90,6 @@ describe('Security Tests', () => {
       const orgA = await createTestOrganization()
       const userA = await createTestUser()
       await createTestMembership({ userId: userA.id, organizationId: orgA.id })
-      const { token: tokenA } = await createTestSession(userA.id, orgA.id)
 
       const orgB = await createTestOrganization()
       const userB = await createTestUser()
@@ -103,7 +101,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/api/v1/leads/${leadA.id}`,
-        headers: { cookie: tokenB },
+        cookies: { session: tokenB },
       })
 
       expect(res.statusCode).toBe(404)
@@ -113,7 +111,6 @@ describe('Security Tests', () => {
       const orgA = await createTestOrganization()
       const userA = await createTestUser()
       await createTestMembership({ userId: userA.id, organizationId: orgA.id })
-      const { token: tokenA } = await createTestSession(userA.id, orgA.id)
 
       const orgB = await createTestOrganization()
       const userB = await createTestUser()
@@ -125,7 +122,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/api/v1/deals/${dealA.id}`,
-        headers: { cookie: tokenB },
+        cookies: { session: tokenB },
       })
 
       expect(res.statusCode).toBe(404)
@@ -137,7 +134,6 @@ describe('Security Tests', () => {
       const orgA = await createTestOrganization()
       const userA = await createTestUser()
       await createTestMembership({ userId: userA.id, organizationId: orgA.id })
-      const { token: tokenA } = await createTestSession(userA.id, orgA.id)
 
       const orgB = await createTestOrganization()
       const userB = await createTestUser()
@@ -150,7 +146,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/companies',
-        headers: { cookie: tokenB },
+        cookies: { session: tokenB },
       })
 
       expect(res.statusCode).toBe(200)
@@ -176,7 +172,7 @@ describe('Security Tests', () => {
           name: 'Hacked Company',
           organizationId: orgB.id, // Should be ignored
         },
-        headers: { cookie: tokenA },
+        cookies: { session: tokenA },
       })
 
       expect(res.statusCode).toBe(201)
@@ -185,6 +181,7 @@ describe('Security Tests', () => {
       const db = getTestDb()
       const company = await db
         .selectFrom('companies')
+        .selectAll()
         .where('id', '=', body.data.id)
         .executeTakeFirst()
 
@@ -197,7 +194,7 @@ describe('Security Tests', () => {
       await createTestMembership({
         userId: user.id,
         organizationId: org.id,
-        role: 'MEMBER',
+        role: 'ADMIN',
       })
       const { token } = await createTestSession(user.id, org.id)
 
@@ -209,10 +206,12 @@ describe('Security Tests', () => {
           name: 'Test',
           role: 'OWNER', // Should be ignored
         },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(201)
+      const body = JSON.parse(res.payload)
+      expect(body.data.role).toBeUndefined()
     })
 
     it('cannot set deletedAt via request body', async () => {
@@ -228,12 +227,12 @@ describe('Security Tests', () => {
           name: 'Test',
           deletedAt: '2020-01-01T00:00:00Z', // Should be ignored
         },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(201)
       const body = JSON.parse(res.payload)
-      expect(body.data.deletedAt).toBeNull()
+      expect(body.data.deleted_at).toBeNull()
     })
   })
 
@@ -250,7 +249,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: "/api/v1/companies?name=' OR '1'='1",
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       // Should not crash, should treat as literal string
@@ -268,7 +267,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: "/api/v1/companies/co_test' OR '1'='1",
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(404) // Not found, not 500
@@ -326,7 +325,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/companies',
-        headers: { cookie: `session=${expiredToken}` },
+        cookies: { session: expiredToken },
       })
 
       expect(res.statusCode).toBe(401)
@@ -342,14 +341,14 @@ describe('Security Tests', () => {
       await app.inject({
         method: 'POST',
         url: '/api/v1/auth/logout',
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       // Try to use revoked session
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/companies',
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(401)
@@ -357,8 +356,7 @@ describe('Security Tests', () => {
   })
 
   describe('Authorization Bypass', () => {
-    it('MEMBER cannot access admin endpoints (if any)', async () => {
-      // Currently no admin-only endpoints, but structure supports it
+    it('MEMBER cannot access admin endpoints', async () => {
       const org = await createTestOrganization()
       const user = await createTestUser()
       await createTestMembership({
@@ -368,15 +366,16 @@ describe('Security Tests', () => {
       })
       const { token } = await createTestSession(user.id, org.id)
 
-      // All current endpoints allow MEMBER+
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/companies',
         payload: { name: 'Member Company' },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
-      expect(res.statusCode).toBe(201)
+      expect(res.statusCode).toBe(403)
+      const body = JSON.parse(res.payload)
+      expect(body.error.code).toBe('FORBIDDEN')
     })
   })
 
@@ -421,7 +420,7 @@ describe('Security Tests', () => {
         method: 'POST',
         url: '/api/v1/imports',
         payload: { type: 'companies' },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(202)
@@ -437,7 +436,7 @@ describe('Security Tests', () => {
         method: 'POST',
         url: '/api/v1/imports',
         payload: { type: 'invalid_type' },
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(422)
@@ -457,7 +456,7 @@ describe('Security Tests', () => {
         method: 'POST',
         url: '/api/v1/companies',
         payload: largePayload,
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(422) // Validation error
@@ -477,7 +476,7 @@ describe('Security Tests', () => {
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/companies/co_nonexistent',
-        headers: { cookie: token },
+        cookies: { session: token },
       })
 
       expect(res.statusCode).toBe(404)

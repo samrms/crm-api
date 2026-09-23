@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import { hashPassword, verifyPassword } from '@/shared/auth/password.js'
 import { createSession, revokeSession } from '@/shared/auth/session.js'
-import type { UserRepository } from '@users/infrastructure/PostgresUserRepository.js'
-import type { MembershipRepository } from '@users/infrastructure/PostgresMembershipRepository.js'
+import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
+import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
 import type { OrganizationRepository } from '@/modules/organizations/infrastructure/PostgresOrganizationRepository.js'
 import {
   ConflictError,

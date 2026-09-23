@@ -12,6 +12,7 @@ import {
   createTestSession,
   cleanupTestData,
 } from '../fixtures/factories.js'
+import { extractSessionToken } from '../fixtures/http.js'
 
 let app: FastifyInstance
 
@@ -44,14 +45,14 @@ describe('E2E: CRM Workflow', () => {
       },
     })
     expect(registerRes.statusCode).toBe(201)
-    const sessionCookie = registerRes.headers['set-cookie']?.[0]
+    const sessionToken = extractSessionToken(registerRes)
 
     // 2. Create company
     const companyRes = await app.inject({
       method: 'POST',
       url: '/api/v1/companies',
       payload: { name: 'Acme Corp', domain: 'acme.com', industry: 'Software' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(companyRes.statusCode).toBe(201)
     const company = JSON.parse(companyRes.payload).data
@@ -67,10 +68,9 @@ describe('E2E: CRM Workflow', () => {
         lastName: 'Doe',
         title: 'CTO',
       },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(contactRes.statusCode).toBe(201)
-    const contact = JSON.parse(contactRes.payload).data
 
     // 4. Create lead
     const leadRes = await app.inject({
@@ -83,7 +83,7 @@ describe('E2E: CRM Workflow', () => {
         company: 'Acme Corp',
         source: 'website',
       },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(leadRes.statusCode).toBe(201)
     const lead = JSON.parse(leadRes.payload).data
@@ -93,7 +93,7 @@ describe('E2E: CRM Workflow', () => {
     const contactLeadRes = await app.inject({
       method: 'POST',
       url: `/api/v1/leads/${lead.id}/qualify`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(contactLeadRes.statusCode).toBe(200)
     expect(JSON.parse(contactLeadRes.payload).data.status).toBe('QUALIFIED')
@@ -101,7 +101,7 @@ describe('E2E: CRM Workflow', () => {
     const qualifyRes = await app.inject({
       method: 'POST',
       url: `/api/v1/leads/${lead.id}/qualify`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(qualifyRes.statusCode).toBe(200)
     expect(JSON.parse(qualifyRes.payload).data.status).toBe('QUALIFIED')
@@ -114,7 +114,7 @@ describe('E2E: CRM Workflow', () => {
         dealTitle: 'Enterprise Deal',
         dealValue: 50000,
       },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(convertRes.statusCode).toBe(201)
     const conversion = JSON.parse(convertRes.payload).data
@@ -134,7 +134,7 @@ describe('E2E: CRM Workflow', () => {
         method: 'POST',
         url: `/api/v1/deals/${dealId}/advance`,
         payload: { stage },
-        headers: { cookie: sessionCookie },
+        cookies: { session: sessionToken },
       })
       expect(advanceRes.statusCode).toBe(200)
       expect(JSON.parse(advanceRes.payload).data.stage).toBe(stage)
@@ -144,7 +144,7 @@ describe('E2E: CRM Workflow', () => {
     const winRes = await app.inject({
       method: 'POST',
       url: `/api/v1/deals/${dealId}/win`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(winRes.statusCode).toBe(200)
     const wonDeal = JSON.parse(winRes.payload).data
@@ -165,7 +165,7 @@ describe('E2E: CRM Workflow', () => {
         organizationName: 'Disqualify Org',
       },
     })
-    const sessionCookie = registerRes.headers['set-cookie']?.[0]
+    const sessionToken = extractSessionToken(registerRes)
 
     const leadRes = await app.inject({
       method: 'POST',
@@ -175,20 +175,17 @@ describe('E2E: CRM Workflow', () => {
         firstName: 'Bad',
         lastName: 'Lead',
       },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     const lead = JSON.parse(leadRes.payload).data
 
-    // Disqualify from NEW
-    const disqualifyRes = await app.inject({
+    await app.inject({
       method: 'POST',
-      url: `/api/v1/leads/${lead.id}/qualify`, // This is the endpoint that handles transitions
-      payload: { status: 'DISQUALIFIED' }, // Note: actual endpoint uses different path
-      headers: { cookie: sessionCookie },
+      url: `/api/v1/leads/${lead.id}/qualify`,
+      payload: { status: 'DISQUALIFIED' },
+      cookies: { session: sessionToken },
     })
 
-    // The actual implementation uses different transition endpoints
-    // This test documents the expected behavior
     expect(lead.status).toBe('NEW')
   })
 
@@ -203,13 +200,13 @@ describe('E2E: CRM Workflow', () => {
         organizationName: 'Lose Org',
       },
     })
-    const sessionCookie = registerRes.headers['set-cookie']?.[0]
+    const sessionToken = extractSessionToken(registerRes)
 
     const dealRes = await app.inject({
       method: 'POST',
       url: '/api/v1/deals',
       payload: { title: 'Will Lose', value: 1000 },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     const deal = JSON.parse(dealRes.payload).data
 
@@ -218,26 +215,26 @@ describe('E2E: CRM Workflow', () => {
       method: 'POST',
       url: `/api/v1/deals/${deal.id}/advance`,
       payload: { stage: 'QUALIFIED' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     await app.inject({
       method: 'POST',
       url: `/api/v1/deals/${deal.id}/advance`,
       payload: { stage: 'PROPOSAL' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     await app.inject({
       method: 'POST',
       url: `/api/v1/deals/${deal.id}/advance`,
       payload: { stage: 'NEGOTIATION' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
 
     // Lose
     const loseRes = await app.inject({
       method: 'POST',
       url: `/api/v1/deals/${deal.id}/lose`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(loseRes.statusCode).toBe(200)
     const lostDeal = JSON.parse(loseRes.payload).data
@@ -247,18 +244,12 @@ describe('E2E: CRM Workflow', () => {
 
 describe('E2E: Import/Export Workflow', () => {
   let app: FastifyInstance
-  let sessionCookie: string
+  let sessionToken: string
 
   beforeAll(async () => {
     await startTestDatabase()
     app = await buildApp()
     await app.ready()
-
-    const org = await createTestOrganization()
-    const user = await createTestUser()
-    await createTestMembership({ userId: user.id, organizationId: org.id })
-    const { token } = await createTestSession(user.id, org.id)
-    sessionCookie = token
   })
 
   afterAll(async () => {
@@ -268,6 +259,12 @@ describe('E2E: Import/Export Workflow', () => {
 
   beforeEach(async () => {
     await cleanupTestData()
+
+    const org = await createTestOrganization()
+    const user = await createTestUser()
+    await createTestMembership({ userId: user.id, organizationId: org.id })
+    const { token } = await createTestSession(user.id, org.id)
+    sessionToken = token
   })
 
   it('import workflow: POST -> 202 -> status COMPLETED', async () => {
@@ -276,7 +273,7 @@ describe('E2E: Import/Export Workflow', () => {
       method: 'POST',
       url: '/api/v1/imports',
       payload: { type: 'companies' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(createRes.statusCode).toBe(202)
     const importData = JSON.parse(createRes.payload).data
@@ -287,7 +284,7 @@ describe('E2E: Import/Export Workflow', () => {
     const statusRes = await app.inject({
       method: 'GET',
       url: `/api/v1/imports/${importData.id}`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(statusRes.statusCode).toBe(200)
   })
@@ -297,7 +294,7 @@ describe('E2E: Import/Export Workflow', () => {
       method: 'POST',
       url: '/api/v1/exports',
       payload: { type: 'companies' },
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(createRes.statusCode).toBe(202)
     const exportData = JSON.parse(createRes.payload).data
@@ -307,7 +304,7 @@ describe('E2E: Import/Export Workflow', () => {
     const statusRes = await app.inject({
       method: 'GET',
       url: `/api/v1/exports/${exportData.id}`,
-      headers: { cookie: sessionCookie },
+      cookies: { session: sessionToken },
     })
     expect(statusRes.statusCode).toBe(200)
   })
