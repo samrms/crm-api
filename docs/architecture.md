@@ -42,7 +42,7 @@ src/
     ├── auth/                 # password hashing, sessions, authenticate, requireRole
     ├── cache/redis.ts        # single Redis client (BullMQ passes its own options)
     ├── config.ts             # typed env access with defaults
-    ├── database/             # connection, migrations, Kysely types, outbox writer, seed
+    ├── database/             # connection, migrations, Kysely types, outbox writer, seed + seeds/
     ├── errors/AppError.ts    # error taxonomy → HTTP status/code mapping
     ├── http/                 # errorHandler, health (+ GET / landing), requestId
     ├── logging/logger.ts     # Pino
