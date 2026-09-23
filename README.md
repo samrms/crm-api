@@ -1,623 +1,371 @@
-# CRM API — Minimal Strong REST API
+# CRM API
 
-A carefully engineered CRM REST API demonstrating backend architecture, TypeScript, domain modeling, PostgreSQL, Redis, BullMQ, and modern engineering practices.
+A multi-tenant CRM REST API built with **Bun, Fastify, TypeScript, PostgreSQL and Redis**. A portfolio
+project focused on backend engineering quality: explicit domain state machines, strict multi-tenancy,
+optimistic concurrency, a transactional outbox, and a hermetic test suite that runs without any
+external services.
 
-## Project Purpose
+## Highlights
 
-This is a **greenfield portfolio project** — minimal in product scope but strong in engineering quality. It demonstrates:
+- **Modular monolith** — 7 feature modules, each with `domain / application / infrastructure / http`
+  layers and its own path alias
+- **Explicit state machines** — leads and deals only move through declared transitions; anything else
+  is rejected (422) or conflicts (409)
+- **Multi-tenancy** — every query is scoped to the caller's organization; cross-tenant reads return
+  `404`, verified by dedicated security tests
+- **RBAC** — `OWNER` / `ADMIN` / `MEMBER`; reads require membership, writes require `OWNER` or `ADMIN`
+- **Optimistic concurrency** — versioned rows; stale writes surface as `409 OPTIMISTIC_LOCK_CONFLICT`
+- **Transactional outbox** — domain side effects (audit entries, outbox events) commit atomically
+  with the change that caused them
+- **Keyset cursor pagination + HATEOAS** — stable `created_at DESC, id DESC` cursors, state-aware
+  `_links` that only advertise legal next actions
+- **Hermetic tests** — 206 tests across 6 suites (unit, integration, API, E2E, security,
+  concurrency) that run on an in-memory SQLite harness — no Docker required
+- **Production shape** — multi-stage Docker build, non-root container, Bun-native GitHub Actions CI
 
-- Backend architecture (modular monolith + separate worker)
-- Domain-driven design with explicit state machines
-- Type-safe database access (Kysely)
-- Multi-tenancy with tenant isolation at every layer
-- Secure authentication (Argon2id, cookie sessions, revocation)
-- RBAC (OWNER/ADMIN/MEMBER)
-- Optimistic concurrency control
-- Transactional outbox pattern for reliable async processing
-- BullMQ worker with exponential backoff retry
-- Idempotent job processing
-- Cursor pagination with signed cursors
-- HATEOAS links
-- OpenAPI documentation
-- Comprehensive testing (unit, integration, API, E2E, security)
-- Structured logging, metrics, health checks
-- Docker, CI/CD, Render deployment
+## Tech Stack
+
+| Layer      | Choice                                            |
+| ---------- | ------------------------------------------------- |
+| Runtime    | Bun ≥ 1.1 (developed on 1.3)                      |
+| Language   | TypeScript 5.7, `strict` + `noUncheckedIndexedAccess` |
+| HTTP       | Fastify 5 (Helmet, CORS, cookie, rate-limit)      |
+| Validation | Zod 3                                             |
+| Database   | PostgreSQL 16 via Kysely 0.27 (type-safe SQL)     |
+| Queue      | Redis 7 + BullMQ 5 (separate worker process)      |
+| Logging    | Pino (JSON, request-scoped)                       |
+| Tests      | Vitest 3 (Node ≥ 22.5 for `node:sqlite`)          |
+| Quality    | ESLint 9 (flat config), Prettier 3, `tsc --noEmit` |
+| Shipping   | Docker multi-stage, GitHub Actions                |
+| API Docs   | OpenAPI 3 + Swagger UI at `/docs` (schemas from Zod) |
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │    REST API     │
-                    │    Fastify      │
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │ Application     │
-                    │ Use Cases       │
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │ Domain          │
-                    │ Business Rules  │
-                    └────────┬────────┘
-                             │
-             ┌───────────────┼────────────────┐
-             ▼               ▼                ▼
-       PostgreSQL          Redis             AI
-             │               │
-             ▼               ▼
-          Outbox          BullMQ
-                             │
-                             ▼
-                           Worker
+        ┌──────────────┐        ┌──────────────┐
+        │   REST API   │        │    Worker    │
+        │  (Fastify)   │        │   (BullMQ)   │
+        └──────┬───────┘        └──────┬───────┘
+               │  Kysely               │  Kysely
+        ┌──────┴───────────────────────┴───────┐
+        │            PostgreSQL               │
+        │  domain rows │ outbox │ audit log    │
+        └──────────────────────────────────────┘
+               ▲
+               │  outbox events (written in the same transaction)
+        Redis ─┴─ BullMQ queue `crm-jobs`
 ```
+
+The API and the worker are separate entrypoints (`src/server.ts`, `src/worker.ts`) sharing one
+codebase. The server runs migrations on boot, then listens; the worker consumes `process-import`
+and `process-export` jobs with idempotency guards (a completed job is never re-applied) and
+`PENDING → PROCESSING → COMPLETED | FAILED` status transitions. Dispatching outbox rows onto the
+queue is intentionally left as an integration point — the outbox table is the durable,
+at-least-once source of truth.
+
+### Module anatomy
+
+Every feature module under `src/modules/` follows the same shape:
+
+```
+src/modules/<module>/
+├── domain/          # state machines, invariants — pure functions, zero I/O
+├── application/     # use cases and services (transactions live here)
+├── infrastructure/  # Kysely repositories (tenant scoping, keyset queries)
+└── http/            # Fastify routes: Zod parse → service → response envelope
+```
+
+Shared building blocks live in `src/shared/` (auth, config, database, errors, http, logging,
+pagination, utils).
+
+### Path aliases
+
+Imports never climb with `../../..` — each module has an alias (declared once in `tsconfig.json`,
+resolved by Bun at runtime and `tsc` at compile time):
+
+Two aliases cover every import (declared once in `tsconfig.json` and `vitest.config.ts`,
+resolved by Bun at runtime and `tsc` at compile time):
+
+| Alias         | Maps to        |
+| ------------- | -------------- |
+| `@/*`         | `src/*`        |
+| `@shared/*`   | `src/shared/*` |
 
 ## Domain Model
 
-```
-Organization
-    │
-    ├── Users / Members (RBAC: OWNER | ADMIN | MEMBER)
-    │
-    ├── Companies
-    │      │
-    │      └── Contacts
-    │
-    ├── Leads
-    │      │
-    │      └── Conversion (atomic transaction)
-    │              │
-    │              └── Deal
-    │
-    ├── Activities
-    ├── Tasks
-    │
-    ├── Imports
-    ├── Exports
-    └── Audit
-```
+**Tenancy** — `organization` owns everything; `user` + `membership(role)` grant access. Sessions are
+server-side rows tied to one organization, revocable, with enforced expiry.
 
-### Lead State Machine
+**CRM core** — `company` → `contact` and `company` → `deal`; `lead` is a pipeline record that can be
+converted into a company + contact + deal in one transaction.
+
+### Lead state machine
 
 ```
-NEW
-  ↓
-CONTACTED
-  ↓
-QUALIFIED
-  ↓
-CONVERTED          ←── Atomic: creates Company + Contact + Deal + Audit + Outbox
-                  ↑
-DISQUALIFIED (terminal)
+NEW ──► CONTACTED ──► QUALIFIED ──► CONVERTED (terminal)
+  │          │            │
+  └──────────┴────────────┴──────► DISQUALIFIED (terminal)
 ```
 
-### Deal State Machine
+`POST /leads/:id/qualify` walks the shortest legal path (BFS over the transition graph);
+`POST /leads/:id/convert` is terminal and guarded by an optimistic-lock check.
+
+### Deal state machine
 
 ```
-NEW
-  ↓
-QUALIFIED
-  ↓
-PROPOSAL
-  ↓
-NEGOTIATION
-  ├──→ WON (terminal)
-  └──→ LOST (terminal)
+NEW ──► QUALIFIED ──► PROPOSAL ──► NEGOTIATION ──► WON (terminal)
+                                             └──► LOST (terminal)
 ```
 
-## Business Rules
+`POST /deals/:id/advance` moves one step (same-stage advance → `409 CONFLICT`), while `win` and
+`lose` jump from `NEGOTIATION` to a terminal stage.
 
-### Lead Transitions
+### Lead conversion (the critical operation)
 
-| From         | Valid To                |
-| ------------ | ----------------------- |
-| NEW          | CONTACTED, DISQUALIFIED |
-| CONTACTED    | QUALIFIED, DISQUALIFIED |
-| QUALIFIED    | CONVERTED, DISQUALIFIED |
-| CONVERTED    | (none — terminal)       |
-| DISQUALIFIED | (none — terminal)       |
+One transaction does all of it, or none of it:
 
-### Deal Transitions
+1. Find-or-create `company` (by name, tenant-scoped) and `contact` (by lead email)
+2. Create the `deal` linked to company/contact/lead
+3. Flip the lead to `CONVERTED` with a version bump (stale version → `409`)
+4. Insert an `audit_events` row (who converted what) and an `outbox_events` row
 
-| From        | Valid To          |
-| ----------- | ----------------- |
-| NEW         | QUALIFIED         |
-| QUALIFIED   | PROPOSAL          |
-| PROPOSAL    | NEGOTIATION       |
-| NEGOTIATION | WON, LOST         |
-| WON         | (none — terminal) |
-| LOST        | (none — terminal) |
+## API
 
-### Lead Conversion (Critical Operation)
-
-Within a single PostgreSQL transaction:
-
-1. Validate lead can be converted (status = QUALIFIED)
-2. Find or create Company (by name/domain)
-3. Find or create Contact (by email within company)
-4. Create Deal (linked to company, contact, lead)
-5. Update Lead status → CONVERTED, link to deal
-6. Create Audit record
-7. Create Outbox event
-
-On failure: **ROLLBACK**. No partial state.
-
-## Security
-
-### Defense in Depth
-
-```
-Request
-  ↓
-Request ID
-  ↓
-Rate limiting (100 req/min)
-  ↓
-Authentication (session cookie)
-  ↓
-Organization context (from session)
-  ↓
-Authorization (RBAC)
-  ↓
-Validation (Zod schemas)
-  ↓
-Application use case
-  ↓
-Tenant-scoped repository
-  ↓
-Database constraints (FK, unique, check)
-```
-
-### Protections Implemented
-
-- **IDOR**: Every query scoped by `organization_id`
-- **Tenant escape**: Middleware enforces `request.organizationId`
-- **Mass assignment**: Explicit field allow-lists in use cases
-- **SQL injection**: Kysely parameterized queries
-- **Auth bypass**: Session validation on every request
-- **Authz bypass**: Role checks on sensitive operations
-- **Privilege escalation**: OWNER-only for membership changes
-- **Rate-limit bypass**: Per-IP + per-user limits
-- **Malicious CSV**: File size limits, sanitization
-- **Sensitive error leakage**: Generic 500 messages, requestId for debugging
-
-### Authentication
-
-- **Passwords**: Argon2id (memory: 64MB, time: 3, parallelism: 4)
-- **Sessions**: httpOnly secure cookies, 30-day expiry, DB-backed with revocation
-- **Logout**: Immediate revocation (`revoked_at`)
-
-### Authorization
-
-Roles: `OWNER` > `ADMIN` > `MEMBER`
-
-| Operation               | Required Role            |
-| ----------------------- | ------------------------ |
-| Create organization     | OWNER (via registration) |
-| Add/remove members      | OWNER                    |
-| Change member role      | OWNER                    |
-| Create/update companies | MEMBER+                  |
-| Create/update contacts  | MEMBER+                  |
-| Lead conversion         | MEMBER+                  |
-| Deal stage changes      | MEMBER+                  |
-| Import/export           | MEMBER+                  |
-
-## Multi-Tenancy
-
-Every tenant-owned resource belongs to an organization. Every query includes:
-
-```sql
-WHERE organization_id = $orgId AND deleted_at IS NULL
-```
-
-**Never** query by ID alone and authorize afterward. Tenant isolation is part of repository behavior.
-
-## API Design
-
-### Versioning
-
-```
-/api/v1
-```
+Base path `/api/v1`, JSON in / JSON out, session cookie auth.
+Interactive docs at `/docs` (Swagger UI); raw OpenAPI 3 document at `/docs/json`.
+Request schemas in the document are generated from the same Zod schemas that validate requests.
 
 ### Endpoints
 
-| Method | Path                         | Description                    |
-| ------ | ---------------------------- | ------------------------------ |
-| POST   | `/api/v1/auth/register`      | Register org + user + session  |
-| POST   | `/api/v1/auth/login`         | Login + session                |
-| POST   | `/api/v1/auth/logout`        | Revoke session                 |
-| GET    | `/api/v1/auth/me`            | Current user + org             |
-| GET    | `/api/v1/companies`          | List companies                 |
-| POST   | `/api/v1/companies`          | Create company                 |
-| GET    | `/api/v1/companies/:id`      | Get company                    |
-| PATCH  | `/api/v1/companies/:id`      | Update company                 |
-| GET    | `/api/v1/contacts`           | List contacts                  |
-| POST   | `/api/v1/contacts`           | Create contact                 |
-| GET    | `/api/v1/contacts/:id`       | Get contact                    |
-| GET    | `/api/v1/leads`              | List leads                     |
-| POST   | `/api/v1/leads`              | Create lead                    |
-| GET    | `/api/v1/leads/:id`          | Get lead                       |
-| POST   | `/api/v1/leads/:id/qualify`  | NEW → CONTACTED → QUALIFIED    |
-| POST   | `/api/v1/leads/:id/convert`  | QUALIFIED → CONVERTED (atomic) |
-| GET    | `/api/v1/deals`              | List deals                     |
-| POST   | `/api/v1/deals`              | Create deal                    |
-| GET    | `/api/v1/deals/:id`          | Get deal                       |
-| POST   | `/api/v1/deals/:id/advance`  | Stage transition               |
-| POST   | `/api/v1/deals/:id/win`      | NEGOTIATION → WON              |
-| POST   | `/api/v1/deals/:id/lose`     | NEGOTIATION → LOST             |
-| GET    | `/api/v1/tasks`              | List tasks                     |
-| POST   | `/api/v1/tasks`              | Create task                    |
-| POST   | `/api/v1/tasks/:id/complete` | Complete task                  |
-| POST   | `/api/v1/imports`            | Create import (202)            |
-| GET    | `/api/v1/imports/:id`        | Import status                  |
-| POST   | `/api/v1/exports`            | Create export (202)            |
-| GET    | `/api/v1/exports/:id`        | Export status + download URL   |
-| GET    | `/api/v1/organizations/:id`  | Get organization               |
-| PATCH  | `/api/v1/organizations/:id`  | Update organization (OWNER)    |
-| GET    | `/health`                    | Process alive                  |
-| GET    | `/ready`                     | Dependencies ready             |
+| Method | Path                          | Access       |
+| ------ | ----------------------------- | ------------ |
+| GET    | `/health`                     | public (liveness) |
+| GET    | `/ready`                      | public (Postgres + Redis readiness, `200`/`503`) |
+| POST   | `/api/v1/auth/register`       | public — creates org + owner + session |
+| POST   | `/api/v1/auth/login`          | public       |
+| POST   | `/api/v1/auth/logout`         | authenticated |
+| GET    | `/api/v1/auth/me`             | authenticated |
+| GET    | `/api/v1/companies`, `/companies/:id` | authenticated |
+| POST   | `/api/v1/companies`           | OWNER/ADMIN  |
+| PATCH  | `/api/v1/companies/:id`       | OWNER/ADMIN  |
+| DELETE | `/api/v1/companies/:id`       | OWNER/ADMIN  |
+| GET    | `/api/v1/contacts`, `/contacts/:id` | authenticated |
+| POST/PATCH/DELETE | `/api/v1/contacts…`   | OWNER/ADMIN  |
+| GET    | `/api/v1/leads`, `/leads/:id` | authenticated |
+| POST/PATCH/DELETE | `/api/v1/leads…`       | OWNER/ADMIN  |
+| POST   | `/api/v1/leads/:id/qualify`   | OWNER/ADMIN  |
+| POST   | `/api/v1/leads/:id/convert`   | OWNER/ADMIN  |
+| GET    | `/api/v1/deals`, `/deals/:id` | authenticated |
+| POST/PATCH/DELETE | `/api/v1/deals…`       | OWNER/ADMIN  |
+| POST   | `/api/v1/deals/:id/advance`   | OWNER/ADMIN  |
+| POST   | `/api/v1/deals/:id/win` / `lose` | OWNER/ADMIN |
+| GET    | `/api/v1/tasks`, `/tasks/:id` | authenticated |
+| POST/PATCH/DELETE, `/tasks/:id/complete` | OWNER/ADMIN |
+| GET/POST/PATCH/DELETE | `/api/v1/members…` | OWNER/ADMIN |
+| GET    | `/api/v1/organizations/:id`   | authenticated |
+| PATCH  | `/api/v1/organizations/:id`   | OWNER/ADMIN  |
+| POST   | `/api/v1/imports`             | OWNER/ADMIN  |
+| GET    | `/api/v1/imports/:id`         | authenticated |
+| POST   | `/api/v1/exports`             | OWNER/ADMIN  |
+| GET    | `/api/v1/exports/:id`         | authenticated |
+| GET    | `/api/v1/audit-events`, `/:id`| OWNER/ADMIN  |
 
-### HTTP Semantics
+### Error contract
 
-| Code | Use                                   |
-| ---- | ------------------------------------- |
-| 201  | Created (sync)                        |
-| 202  | Accepted (async)                      |
-| 204  | No Content (delete/logout)            |
-| 400  | Bad Request                           |
-| 401  | Unauthorized                          |
-| 403  | Forbidden                             |
-| 404  | Not Found                             |
-| 409  | Conflict (optimistic lock, duplicate) |
-| 422  | Validation Error                      |
-| 429  | Too Many Requests                     |
-| 500  | Internal Error                        |
-| 503  | Service Unavailable (not ready)       |
-
-### Error Contract
+Every failure has the same shape — machine-readable `code`, human `message`, and the `requestId`
+that ties it to the logs (500s never leak stack traces):
 
 ```json
 {
   "error": {
-    "code": "NOT_FOUND",
-    "message": "Deal not found",
-    "requestId": "req_abc123"
+    "code": "OPTIMISTIC_LOCK_CONFLICT",
+    "message": "Deal was modified by another request",
+    "requestId": "req-1f2e3d"
   }
 }
 ```
 
-Validation errors include `details` with Zod issues.
+| Status | Codes                                                  |
+| ------ | ------------------------------------------------------ |
+| 400    | `INVALID_CURSOR`                                       |
+| 401    | `UNAUTHORIZED` (missing/expired/revoked session)        |
+| 403    | `FORBIDDEN` (role too low)                             |
+| 404    | `NOT_FOUND` (also used for cross-tenant IDs)           |
+| 409    | `CONFLICT`, `OPTIMISTIC_LOCK_CONFLICT`                 |
+| 422    | `VALIDATION_ERROR` (Zod failures and illegal transitions, with `details`) |
+| 429    | `RATE_LIMITED`                                         |
+| 500    | `INTERNAL_ERROR`                                       |
 
-### Cursor Pagination
+### Pagination
 
-```
-GET /api/v1/deals?limit=50&after=<cursor>
-```
+Keyset (not offset) pagination on `created_at DESC, id DESC` with a base64url cursor — stable under
+inserts, no duplicated or skipped rows:
 
-Response:
+```http
+GET /api/v1/companies?limit=25
+GET /api/v1/companies?limit=25&after=<nextCursor>
 
-```json
 {
-  "data": [...],
-  "pagination": {
-    "limit": 50,
-    "hasNextPage": true,
-    "nextCursor": "eyJjcmVhdGVkQXQiOiIyMDI0LTAxLTE1VDEwOjMwOjAwWiIsImlkIjoiZGxfYWJjMTIzIn0.sig"
-  }
+  "data": [ ... ],
+  "pagination": { "limit": 25, "hasNextPage": true, "nextCursor": "eyJjcmVhdGVkQXQiOi…" }
 }
 ```
 
-- Default limit: 25, max: 100
-- Ordering: `created_at DESC, id DESC` (deterministic)
-- Cursor = base64url({ createdAt, id }) + HMAC signature
-- Tampered cursors → 400
+`limit` is capped at 100; a malformed cursor is `400 INVALID_CURSOR`. The companies list also
+demonstrates a tenant-scoped filter (`?name=`, exact match, parameterized).
 
 ### HATEOAS
 
+Responses advertise only the actions that are legal *right now*:
+
 ```json
 {
-  "data": { "id": "dl_abc123", "stage": "NEGOTIATION", ... },
-  "_links": {
-    "self": { "href": "/api/v1/deals/dl_abc123" },
-    "win": { "href": "/api/v1/deals/dl_abc123/win", "method": "POST" },
-    "lose": { "href": "/api/v1/deals/dl_abc123/lose", "method": "POST" }
+  "data": {
+    "id": "ld_Kx9…",
+    "status": "QUALIFIED",
+    "_links": {
+      "self":    { "href": "/api/v1/leads/ld_Kx9…" },
+      "qualify": { "href": "/api/v1/leads/ld_Kx9…/qualify" },
+      "convert": { "href": "/api/v1/leads/ld_Kx9…/convert" }
+    }
   }
 }
 ```
 
-Links are **state-aware** — `win`/`lose` only appear in NEGOTIATION.
+A `CONVERTED` lead advertises neither action; a `NEGOTIATION` deal advertises `win`/`lose` but not
+`advance` once terminal.
 
-> ⚠️ HATEOAS is not a security boundary. Server always enforces authorization.
+## Security
 
-### Async Operations
-
-Imports/exports return `202 Accepted`:
-
-```json
-{
-  "data": { "id": "imp_abc123", "status": "PENDING", "type": "companies" },
-  "_links": {
-    "self": { "href": "/api/v1/imports/imp_abc123" },
-    "status": { "href": "/api/v1/imports/imp_abc123" }
-  }
-}
-```
-
-Poll `/api/v1/imports/:id` until `COMPLETED` or `FAILED`.
-
-## Async Processing
-
-### Architecture
-
-```
-HTTP API
-  ↓
-Durable job record (PostgreSQL)
-  ↓
-Outbox event (same transaction)
-  ↓
-Dispatcher (polling)
-  ↓
-BullMQ (Redis)
-  ↓
-Worker (separate process)
-  ↓
-Processing
-  ↓
-COMPLETED / FAILED
-```
-
-### Job States
-
-`PENDING` → `PROCESSING` → `RETRYING` → `COMPLETED` | `FAILED` | `CANCELLED`
-
-### Retry Strategy
-
-- Exponential backoff: 1s, 2s, 4s...
-- Jitter: ±25%
-- Max attempts: 3
-- Retryable: 429, 503, timeouts, temp network/DB errors
-- **Not retryable**: 400, 401, 403, invalid input, business rule violations
-
-### Idempotency
-
-At-least-once delivery + idempotent handlers:
-
-- Import rows: `importId + rowNumber` unique constraint
-- Export: idempotent by `exportId`
-- Upserts where appropriate
-
-Duplicate execution → no duplicate business data.
-
-### Transactional Outbox
-
-```sql
-BEGIN
-  -- Business changes
-  INSERT INTO outbox_events (type, payload, organization_id) VALUES (...);
-COMMIT
-```
-
-Dispatcher polls unprocessed events, publishes to BullMQ, marks `processed_at`.
-
-## Caching
-
-Selective Redis caching:
-
-- Organization summary (member count, deal count)
-- Deal pipeline summary (counts per stage)
-
-Pattern: read-through with invalidation on mutation. Core CRM works without Redis.
-
-## AI Integration
-
-Single isolated use case: **Deal Summary Generation**.
-
-```
-Application
-  ↓
-AI Service Interface
-  ↓
-OpenAI Provider (timeout, retry, cost limits)
-  ↓
-Structured output (JSON schema)
-  ↓
-Zod validation
-  ↓
-Business rule validation
-  ↓
-Persist
-```
-
-Security:
-
-- No passwords, tokens, cross-org data sent to LLM
-- Output validated before use
-- Per-organization rate limiting
-- Audit trail
+- **Passwords**: argon2id; sessions are opaque server-side tokens in an `HttpOnly` cookie with
+  expiry and revocation (logout invalidates immediately)
+- **Tenant isolation**: organization scoping is enforced in the repository layer, not in handlers —
+  covered by IDOR/tenant-escape tests
+- **Mass assignment**: request bodies pass through Zod schemas that strip unknown keys
+  (`role`, `deletedAt`, `organization_id` cannot be smuggled in)
+- **SQL injection**: only parameterized Kysely queries; cursor and filter inputs are validated
+- **CSV**: exported/imported values are guarded against formula injection (`=`, `+`, `-`, `@`
+  prefixes neutralized); quoted cells round-trip correctly
+- **Rate limiting**: per-IP (default 100/min → `429 RATE_LIMITED`); explicitly disabled under
+  `NODE_ENV=test` except in the test that exercises it
+- **Headers/hardening**: Helmet, strict CORS origin, generic 500s, request IDs on every response
 
 ## Testing
 
-| Layer       | Focus                                                                         | Tools                   |
-| ----------- | ----------------------------------------------------------------------------- | ----------------------- |
-| Unit        | Domain rules, state machines, cursor encoding, auth policies                  | Vitest                  |
-| Integration | Repositories, constraints, transactions, outbox, queue, cache                 | Vitest + testcontainers |
-| API         | Auth, authz, validation, 404, 409, pagination, HATEOAS, tenant isolation      | Fastify inject          |
-| E2E         | Full CRM workflow, import/export, tenant isolation                            | Vitest                  |
-| Security    | IDOR, tenant escape, mass assignment, SQLi, auth bypass, privilege escalation | Vitest                  |
-| Concurrency | Dual deal update (409), duplicate job, concurrent idempotent                  | Vitest                  |
-| Failure     | DB down, Redis down, queue down, AI timeout/429, worker crash                 | Vitest                  |
+Tests are **hermetic by design**: each test file boots its own in-memory SQLite database through a
+thin harness (`tests/fixtures/testDatabase.ts`) that emulates the PostgreSQL semantics the code
+relies on — date strings revive to `Date` on read, and objects serialize to JSON on bind the same
+way `pg` does. No containers, no network, no shared state between files.
 
-### Test Organization
+| Suite         | Command                | Files | Tests | What it proves                                |
+| ------------- | ---------------------- | ----: | ----: | --------------------------------------------- |
+| unit          | `bun run test:unit`    |    25 |   107 | services, state machines, utils, pure logic   |
+| integration   | `bun run test:integration` |  5 |    33 | repositories, tenant isolation, outbox writes |
+| api           | `bun run test:api`     |     1 |    34 | contracts, errors, pagination, HATEOAS, RBAC  |
+| e2e           | `bun run test:e2e`     |     1 |     5 | full workflows: register → convert → win      |
+| security      | `bun run test:security`|     1 |    21 | IDOR, auth bypass, mass assignment, CSV, rate limit |
+| concurrency   | `bun run test:concurrency` | 1 |     6 | optimistic locking, idempotent duplicate jobs |
+| **total**     | `bun run test`         |    34 |   206 |                                               |
+
+## Getting Started
+
+**Prerequisites**: [Bun](https://bun.sh) ≥ 1.1, Node.js ≥ 22.5 (the test runner uses `node:sqlite`),
+Docker (for Postgres/Redis).
+
+```bash
+bun install                     # install dependencies
+cp .env.example .env            # configure the environment
+
+docker compose up -d postgres   # local PostgreSQL
+bun run migrate                 # apply the 14 migrations
+
+bun run dev                     # API on http://localhost:3000
+bun run dev:worker              # optional: background worker
+```
+
+```bash
+bun run test                    # full suite — no services needed
+bun run lint && bun run typecheck && bun run format:check
+```
+
+Register and go:
+
+```bash
+curl -s -X POST localhost:3000/api/v1/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"email":"owner@acme.test","password":"secret1234","name":"Owner","organizationName":"Acme"}'
+# → 201 + Set-Cookie: session=…; HttpOnly
+```
+
+## Scripts
+
+| Script                 | Purpose                                   |
+| ---------------------- | ----------------------------------------- |
+| `dev` / `dev:worker`   | run API / worker with watch reload        |
+| `build` / `start`      | compile with `tsc` → `dist/`, run it      |
+| `start:worker`         | run the compiled worker                   |
+| `test` (+ `test:unit`, `test:integration`, `test:api`, `test:e2e`, `test:security`, `test:concurrency`) | run suites |
+| `test:watch` / `test:coverage` | watch mode / V8 coverage report     |
+| `lint` / `lint:fix`    | ESLint over `src/` and `tests/`           |
+| `format` / `format:check` | Prettier write / verify                |
+| `typecheck`            | `tsc --noEmit`                            |
+| `migrate` / `migrate:rollback` / `db:reset` | schema up / down / rebuild  |
+
+## Docker
+
+Multi-stage build (`deps → build → production`): frozen lockfile install, in-container typecheck
+and compile, then a slim runtime on the official `oven/bun:1` image running as a **non-root** user. `tsconfig.json`
+ships in the final image so Bun resolves the `@/…` path aliases at runtime; `.dockerignore` keeps
+`.env`, `node_modules` and tests out of the context.
+
+```bash
+docker build -t crm-api .                       # image only
+docker compose up --build                       # postgres + redis + api + worker
+```
+
+Host ports are overridable (defaults `3000/5432/6379`):
+
+```bash
+API_PORT=13000 REDIS_PORT=16379 docker compose up --build
+```
+
+The API container runs migrations on boot; `/ready` reports `200` once Postgres and Redis both
+answer.
+
+## CI
+
+`.github/workflows/ci.yml` (Bun-native, no external services):
+
+1. **quality** — `bun install --frozen-lockfile`, `lint`, `typecheck`, `format:check`
+2. **tests** — the full 206-test suite
+3. **build** — `tsc` compile + `docker build` (gated on the previous two)
+
+## Project Structure
 
 ```
+src/
+├── server.ts                 # API entrypoint (migrate → listen → graceful shutdown)
+├── worker.ts                 # BullMQ worker entrypoint (crm-jobs)
+├── app.ts                    # Fastify wiring: plugins, error handler, module routes
+├── modules/
+│   ├── users/                # auth routes (register/login/logout/me)
+│   ├── organizations/        # orgs + members (RBAC) + audit trail reads
+│   ├── crm/                  # companies, contacts, leads (+LeadState, ConvertLead), deals (+DealState)
+│   ├── engagement/           # tasks
+│   └── bulk/                 # async import/export jobs
+└── shared/
+    ├── auth/                 # password hashing, sessions, authenticate, requireRole
+    ├── cache/redis.ts
+    ├── config.ts             # typed env access with defaults
+    ├── database/             # connection, migrations (14), Kysely types
+    ├── errors/AppError.ts    # error taxonomy → HTTP status/code mapping
+    ├── http/                 # errorHandler, health, requestId
+    ├── logging/logger.ts     # Pino
+    ├── pagination/           # cursor encode/decode/verify
+    └── utils/                # slug, id, result, csv, date, validate
 tests/
-├── unit/
-│   ├── leads/LeadState.test.ts
-│   ├── deals/DealState.test.ts
-│   ├── shared/CursorEncoder.test.ts
-│   └── auth/PasswordHasher.test.ts
-├── integration/
-├── api/
-├── e2e/
-├── security/
-├── concurrency/
-└── fixtures/
+├── fixtures/                 # factories + in-memory SQLite harness
+├── unit/ integration/ api/ e2e/ security/ concurrency/
+.github/workflows/ci.yml
+Dockerfile · docker-compose.yml · .dockerignore
 ```
-
-Run: `pnpm test:unit`, `pnpm test:integration`, `pnpm test:api`, `pnpm test:e2e`, `pnpm test:security`
-
-## Observability
-
-### Structured Logging (Pino)
-
-Every request: `requestId`. Async ops: `jobId`. Relevant logs: `organizationId`, `actorId`.
-
-Never logged: passwords, session tokens, API keys, secrets.
-
-### Metrics (Prometheus)
-
-- HTTP request duration
-- HTTP error count
-- Database latency
-- Queue depth
-- Job duration / success / failure / retries
-
-### Health Checks
-
-| Endpoint      | Purpose                      |
-| ------------- | ---------------------------- |
-| `GET /health` | Process alive                |
-| `GET /ready`  | PostgreSQL + Redis available |
-
-## Development
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 10+
-- Docker (for local PostgreSQL + Redis)
-
-### Quick Start
-
-```bash
-# Install
-pnpm install
-pnpm approve-builds --all
-
-# Start infrastructure
-docker compose up -d
-
-# Run migrations
-pnpm migrate
-
-# Start API
-pnpm dev
-
-# Start Worker (separate terminal)
-pnpm dev:worker
-```
-
-### Commands
-
-```bash
-pnpm dev          # API with hot reload
-pnpm dev:worker   # Worker with hot reload
-pnpm build        # TypeScript compile
-pnpm start        # Run built API
-pnpm start:worker # Run built worker
-pnpm test         # All tests
-pnpm test:unit    # Unit tests only
-pnpm test:integration
-pnpm test:api
-pnpm test:e2e
-pnpm test:security
-pnpm lint         # ESLint
-pnpm typecheck    # tsc --noEmit
-pnpm migrate      # Run migrations up
-pnpm migrate:rollback # Rollback last migration
-pnpm db:reset     # Rollback + migrate
-```
-
-## Deployment
-
-### Docker
-
-Multi-stage build:
-
-- `deps` → install dependencies
-- `build` → typecheck + compile
-- `production` → minimal runtime image (non-root user)
-
-### Render (Blueprint)
-
-```yaml
-services:
-  - type: web # API
-    name: crm-api
-    startCommand: node dist/server.js
-  - type: worker # Background worker
-    name: crm-worker
-    startCommand: node dist/worker.js
-  - type: pserv # PostgreSQL
-  - type: redis # Redis
-```
-
-Environment variables (secrets in Render dashboard):
-
-- `DATABASE_URL`
-- `REDIS_URL`
-- `SESSION_SECRET`
-- `AI_API_KEY` (optional)
-- `CORS_ORIGIN`
-
-### CI/CD (GitHub Actions)
-
-```yaml
-install → lint → typecheck → unit tests → integration tests → security tests → OpenAPI validation → build → Docker build → deploy
-```
-
-## Trade-offs
-
-| Decision             | Trade-off                                           |
-| -------------------- | --------------------------------------------------- |
-| Modular monolith     | Simpler ops, but all modules share DB               |
-| Cookie sessions      | Immediate revocation, but DB round-trip per request |
-| Kysely over ORM      | Type-safe SQL, more verbose than ORM                |
-| Cursor pagination    | Consistent performance, but no random page access   |
-| Transactional outbox | Reliable async, but polling overhead                |
-| Optimistic locking   | No lost updates, but client must handle 409         |
-| BullMQ + Redis       | Mature queue, but extra infrastructure              |
-| No GraphQL           | Simpler, but clients can't shape responses          |
-| No event sourcing    | Simpler, but no temporal queries                    |
-
-## Non-Goals
-
-Intentionally **not implemented**:
-
-- Billing / payments / subscriptions
-- Inventory / products
-- Invoicing
-- Marketing automation
-- Full calendar / chat / notifications
-- Advanced analytics / BI
-- Complex workflow engine
-- Complex permission engine
-- Multi-agent AI / autonomous agents
-- Microservices / Kubernetes / Kafka / Elasticsearch / GraphQL / CQRS / Event sourcing
-
-## Documentation
-
-- [ADR-001: Modular Monolith](docs/adr/001-modular-monolith.md)
-- [ADR-002: PostgreSQL](docs/adr/002-postgresql.md)
-- [ADR-003: Authentication Strategy](docs/adr/003-authentication-strategy.md)
-- [ADR-004: Cursor Pagination](docs/adr/004-cursor-pagination.md)
-- [ADR-005: Queue & Worker Architecture](docs/adr/005-queue-worker-architecture.md)
-- [ADR-006: Transactional Outbox](docs/adr/006-transactional-outbox.md)
-- [ADR-007: Optimistic Concurrency](docs/adr/007-optimistic-concurrency.md)
-- [ADR-008: AI Integration Boundary](docs/adr/008-ai-integration-boundary.md)
-
-## License
-
-MIT — Portfolio project for demonstration purposes.
