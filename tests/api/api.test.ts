@@ -933,4 +933,71 @@ describe('API Tests', () => {
       expect(reuseRes.statusCode).toBe(401)
     })
   })
+
+  describe('Auth: Password Change', () => {
+    it('changes password, keeps current session, revokes the other one', async () => {
+      const org = await createTestOrganization()
+      const user = await createTestUser({
+        email: 'change@example.com',
+        password: 'oldpassword123',
+      })
+      await createTestMembership({ userId: user.id, organizationId: org.id })
+      const sessionA = await createTestSession(user.id, org.id)
+      const sessionB = await createTestSession(user.id, org.id)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password/change',
+        payload: { currentPassword: 'oldpassword123', password: 'newpassword123' },
+        cookies: { session: sessionA.token },
+      })
+      expect(res.statusCode).toBe(200)
+
+      const meA = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        cookies: { session: sessionA.token },
+      })
+      expect(meA.statusCode).toBe(200)
+
+      const meB = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        cookies: { session: sessionB.token },
+      })
+      expect(meB.statusCode).toBe(401)
+
+      const oldLogin = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: 'change@example.com', password: 'oldpassword123' },
+      })
+      expect(oldLogin.statusCode).toBe(401)
+
+      const newLogin = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: 'change@example.com', password: 'newpassword123' },
+      })
+      expect(newLogin.statusCode).toBe(200)
+    })
+
+    it('rejects wrong current password', async () => {
+      const org = await createTestOrganization()
+      const user = await createTestUser({
+        email: 'change2@example.com',
+        password: 'oldpassword123',
+      })
+      await createTestMembership({ userId: user.id, organizationId: org.id })
+      const { token } = await createTestSession(user.id, org.id)
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password/change',
+        payload: { currentPassword: 'wrongpassword', password: 'newpassword123' },
+        cookies: { session: token },
+      })
+      expect(res.statusCode).toBe(401)
+    })
+  })
 })

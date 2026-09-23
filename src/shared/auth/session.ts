@@ -58,6 +58,19 @@ export async function revokeSession(token: string): Promise<void> {
     .execute()
 }
 
+export async function revokeAllExceptSession(
+  userId: string,
+  token: string,
+): Promise<void> {
+  await getDb()
+    .updateTable('sessions')
+    .set({ revoked_at: new Date() })
+    .where('user_id', '=', userId)
+    .where('revoked_at', 'is', null)
+    .where('token', '!=', token)
+    .execute()
+}
+
 export async function revokeAllUserSessions(userId: string): Promise<void> {
   await getDb()
     .updateTable('sessions')

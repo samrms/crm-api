@@ -5,6 +5,7 @@ import {
   createSession,
   revokeSession,
   revokeAllUserSessions,
+  revokeAllExceptSession,
 } from '@/shared/auth/session.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
@@ -122,6 +123,20 @@ export class AuthService {
         'Password reset token (development only)',
       )
     }
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    currentToken: string,
+  ): Promise<void> {
+    const user = await this.userRepo.findById(userId)
+    if (!user) throw new UnauthorizedError('Invalid credentials')
+    const valid = await verifyPassword(currentPassword, user.password_hash)
+    if (!valid) throw new UnauthorizedError('Invalid credentials')
+    await this.userRepo.updatePassword(user.id, await hashPassword(newPassword))
+    await revokeAllExceptSession(user.id, currentToken)
   }
 
   async confirmPasswordReset(token: string, newPassword: string): Promise<void> {

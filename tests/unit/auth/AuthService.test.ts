@@ -1,11 +1,24 @@
 import { describe, it, expect, vi } from 'vitest'
-import { revokeAllUserSessions } from '../../../src/shared/auth/session.js'
+import {
+  revokeAllUserSessions,
+  revokeAllExceptSession,
+} from '../../../src/shared/auth/session.js'
+import {
+  hashPassword,
+  verifyPassword,
+} from '../../../src/shared/auth/password.js'
+
+vi.mock('../../../src/shared/auth/password.js', () => ({
+  hashPassword: vi.fn().mockResolvedValue('hashed'),
+  verifyPassword: vi.fn().mockResolvedValue(true),
+}))
 
 vi.mock('../../../src/shared/auth/session.js', () => ({
   createSession: vi.fn(),
   findSession: vi.fn(),
   revokeSession: vi.fn(),
   revokeAllUserSessions: vi.fn(),
+  revokeAllExceptSession: vi.fn(),
   setSessionCookie: vi.fn(),
   clearSessionCookie: vi.fn(),
 }))
@@ -178,5 +191,41 @@ describe('Unit: AuthService - Password Reset', () => {
     await expect(
       svc.confirmPasswordReset('plain-token', 'newpassword123'),
     ).rejects.toThrow(UnauthorizedError)
+  })
+})
+
+describe('Unit: AuthService - Password Change', () => {
+  const setup = (user: unknown) => {
+    const userRepo = {
+      findById: vi.fn().mockResolvedValue(user),
+      updatePassword: vi.fn(),
+    } as any
+    const svc = new AuthService(userRepo, {} as any, {} as any, {} as any)
+    return { svc, userRepo }
+  }
+
+  it('changePassword verifies current, updates and revokes other sessions', async () => {
+    const { svc, userRepo } = setup({ id: 'u1', password_hash: 'h' })
+    await svc.changePassword('u1', 'oldpassword123', 'newpassword123', 'tok-current')
+    expect(verifyPassword).toHaveBeenCalledWith('oldpassword123', 'h')
+    expect(userRepo.updatePassword).toHaveBeenCalledWith('u1', 'hashed')
+    expect(revokeAllExceptSession).toHaveBeenCalledWith('u1', 'tok-current')
+  })
+
+  it('changePassword rejects wrong current password', async () => {
+    vi.mocked(verifyPassword).mockResolvedValueOnce(false)
+    const { svc, userRepo } = setup({ id: 'u1', password_hash: 'h' })
+    await expect(
+      svc.changePassword('u1', 'wrong', 'newpassword123', 'tok'),
+    ).rejects.toThrow(UnauthorizedError)
+    expect(userRepo.updatePassword).not.toHaveBeenCalled()
+  })
+
+  it('changePassword rejects unknown user', async () => {
+    const { svc, userRepo } = setup(null)
+    await expect(
+      svc.changePassword('missing', 'x', 'newpassword123', 'tok'),
+    ).rejects.toThrow(UnauthorizedError)
+    expect(userRepo.updatePassword).not.toHaveBeenCalled()
   })
 })
