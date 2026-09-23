@@ -7,13 +7,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('id', 'varchar(21)', (col) => col.primaryKey())
     .addColumn('name', 'varchar(255)', (col) => col.notNull())
     .addColumn('slug', 'varchar(255)', (col) => col.notNull().unique())
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('deleted_at', 'timestamptz')
+    .addColumn('deleted_at', 'text')
     .execute()
 }
 

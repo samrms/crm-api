@@ -16,11 +16,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('file_path', 'varchar(500)')
     .addColumn('download_url', 'varchar(1000)')
     .addColumn('error_message', 'text')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 

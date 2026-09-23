@@ -12,10 +12,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('organization_id', 'varchar(21)', (col) =>
       col.notNull().references('organizations.id').onDelete('cascade'),
     )
-    .addColumn('expires_at', 'timestamptz', (col) => col.notNull())
-    .addColumn('revoked_at', 'timestamptz')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('expires_at', 'text', (col) => col.notNull())
+    .addColumn('revoked_at', 'text')
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 

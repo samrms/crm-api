@@ -8,13 +8,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('email', 'varchar(255)', (col) => col.notNull().unique())
     .addColumn('name', 'varchar(255)', (col) => col.notNull())
     .addColumn('password_hash', 'varchar(255)', (col) => col.notNull())
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('deleted_at', 'timestamptz')
+    .addColumn('deleted_at', 'text')
     .execute()
 }
 

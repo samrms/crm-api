@@ -5,3 +5,8 @@ dist/
 storage/
 *.log
 coverage/
+bun.lockb
+.DS_Store
+.idea/
+.vscode/
+*.tsbuildinfo

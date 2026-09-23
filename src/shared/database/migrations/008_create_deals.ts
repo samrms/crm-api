@@ -17,16 +17,16 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       col.notNull().defaultTo('USD'),
     )
     .addColumn('stage', 'varchar(20)', (col) => col.notNull().defaultTo('NEW'))
-    .addColumn('expectedCloseDate', 'timestamptz')
+    .addColumn('expectedCloseDate', 'text')
     .addColumn('notes', 'text')
     .addColumn('version', 'integer', (col) => col.notNull().defaultTo(1))
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('deleted_at', 'timestamptz')
+    .addColumn('deleted_at', 'text')
     .execute()
 
   await db.schema

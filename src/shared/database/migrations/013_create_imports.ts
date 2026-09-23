@@ -19,11 +19,11 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('failed', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('file_path', 'varchar(500)')
     .addColumn('error_message', 'text')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 

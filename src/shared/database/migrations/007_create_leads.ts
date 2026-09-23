@@ -19,13 +19,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('convertedDealId', 'varchar(21)')
     .addColumn('notes', 'text')
     .addColumn('version', 'integer', (col) => col.notNull().defaultTo(1))
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('deleted_at', 'timestamptz')
+    .addColumn('deleted_at', 'text')
     .execute()
 
   await db.schema

@@ -1,6 +1,7 @@
 import { getDb } from '@/shared/database/connection.js'
 import { config } from '@/shared/config.js'
 import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { SessionsTable } from '@/shared/database/types.js'
 
 export interface SessionData {
@@ -15,7 +16,7 @@ export async function createSession(
   userId: string,
   organizationId: string,
 ): Promise<SessionData> {
-  const id = `sess_${nanoid(12)}`
+  const id = newId('sess')
   const token = nanoid(32)
   const expiresAt = new Date(
     Date.now() + config.sessionMaxAgeDays * 24 * 60 * 60 * 1000,
@@ -41,6 +42,7 @@ export async function findSession(
 ): Promise<SessionsTable | undefined> {
   const row = await getDb()
     .selectFrom('sessions')
+    .selectAll()
     .where('token', '=', token)
     .where('revoked_at', 'is', null)
     .where('expires_at', '>', new Date())

@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { config } from '@/shared/config.js'
+import { AppError } from '@/shared/errors/AppError.js'
 
 interface CursorData {
   createdAt: string
@@ -37,4 +38,16 @@ export function decodeCursor(cursor: string): CursorData | null {
   } catch {
     return null
   }
+}
+
+export function verifyCursor(cursor: string): CursorData {
+  const data = decodeCursor(cursor)
+  if (!data) {
+    throw new AppError({
+      statusCode: 400,
+      code: 'INVALID_CURSOR',
+      message: 'Invalid or tampered pagination cursor',
+    })
+  }
+  return data
 }

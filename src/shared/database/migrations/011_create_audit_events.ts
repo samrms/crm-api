@@ -13,9 +13,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('resource_type', 'varchar(50)', (col) => col.notNull())
     .addColumn('resource_id', 'varchar(21)')
     .addColumn('request_id', 'varchar(50)')
-    .addColumn('metadata', 'jsonb')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('metadata', 'text')
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 

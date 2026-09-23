@@ -15,12 +15,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('type', 'varchar(20)', (col) => col.notNull())
     .addColumn('subject', 'varchar(255)', (col) => col.notNull())
     .addColumn('body', 'text')
-    .addColumn('occurredAt', 'timestamptz', (col) => col.notNull())
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('occurredAt', 'text', (col) => col.notNull())
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 

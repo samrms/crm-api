@@ -43,4 +43,9 @@ export const config = {
     defaultLimit: 25,
     maxLimit: 100,
   },
+
+  rateLimit: {
+    max: getEnvInt('RATE_LIMIT_MAX', 100),
+    timeWindow: getEnv('RATE_LIMIT_TIME_WINDOW', '1 minute'),
+  },
 } as const

@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: crm
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -29,9 +29,9 @@ services:
 
   api:
     build: .
-    command: ["node", "dist/server.js"]
+    command: ["bun", "dist/server.js"]
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     environment:
       PORT: 3000
       HOST: 0.0.0.0
@@ -41,6 +41,7 @@ services:
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: dev-session-secret-change-in-production
       CORS_ORIGIN: http://localhost:5173
+      STORAGE_DIR: /tmp/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,13 +50,14 @@ services:
 
   worker:
     build: .
-    command: ["node", "dist/worker.js"]
+    command: ["bun", "dist/worker.js"]
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/crm
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: dev-session-secret-change-in-production
+      STORAGE_DIR: /tmp/storage
     depends_on:
       postgres:
         condition: service_healthy

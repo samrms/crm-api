@@ -14,13 +14,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('size', 'varchar(50)')
     .addColumn('website', 'varchar(255)')
     .addColumn('notes', 'text')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('updated_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('updated_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
-    .addColumn('deleted_at', 'timestamptz')
+    .addColumn('deleted_at', 'text')
     .execute()
 
   await db.schema

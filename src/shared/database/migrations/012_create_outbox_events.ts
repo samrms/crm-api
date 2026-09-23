@@ -9,19 +9,18 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       col.notNull().references('organizations.id').onDelete('cascade'),
     )
     .addColumn('type', 'varchar(100)', (col) => col.notNull())
-    .addColumn('payload', 'jsonb', (col) => col.notNull())
-    .addColumn('processed_at', 'timestamptz')
-    .addColumn('created_at', 'timestamptz', (col) =>
-      col.notNull().defaultTo(db.fn('now')),
+    .addColumn('payload', 'text', (col) => col.notNull())
+    .addColumn('processed_at', 'text')
+    .addColumn('created_at', 'text', (col) =>
+      col.notNull().defaultTo('CURRENT_TIMESTAMP'),
     )
     .execute()
 
   await db.schema
-    .createIndex('idx_outbox_events_unprocessed')
+    .createIndex('idx_outbox_events_processed_at')
     .ifNotExists()
     .on('outbox_events')
     .column('processed_at')
-    .where('processed_at', 'is', null)
     .execute()
 }
 

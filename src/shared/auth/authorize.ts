@@ -14,6 +14,7 @@ export function requireRole(...allowedRoles: Role[]) {
 
     const row = await getDb()
       .selectFrom('memberships')
+      .selectAll()
       .where('user_id', '=', request.auth.userId)
       .where('organization_id', '=', request.auth.organizationId)
       .executeTakeFirst()
