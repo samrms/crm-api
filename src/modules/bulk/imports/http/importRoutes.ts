@@ -5,16 +5,28 @@ import { authenticate } from '@/shared/auth/authenticate.js'
 import { requireRole } from '@/shared/auth/authorize.js'
 import type { ImportService } from '@/modules/bulk/imports/application/ImportService.js'
 import { config } from '@/shared/config.js'
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { newId } from '@/shared/utils/id.js'
+
+const MAX_IMPORT_CONTENT_CHARS = 900_000
 
 const importSchema = z.object({
   type: z.enum(['companies', 'contacts', 'leads']),
+  content: z
+    .string()
+    .min(1)
+    .max(MAX_IMPORT_CONTENT_CHARS)
+    .optional()
+    .describe('CSV text to import. Required for the job to process any rows.'),
 })
 
 export class ImportRoutes {
-  constructor(private readonly service: ImportService) {}
+  constructor(
+    private readonly service: ImportService,
+    private readonly storageDir: string = config.storageDir,
+  ) {}
+
   async register(app: FastifyInstance): Promise<void> {
     app.post(
       '/api/v1/imports',
@@ -30,8 +42,16 @@ export class ImportRoutes {
         const body = importSchema.parse(request.body)
         const orgId = request.auth!.organizationId
 
-        const filePath = join(config.storageDir, `${newId('import')}.csv`)
-        mkdirSync(config.storageDir, { recursive: true })
+        const filePath = join(
+          this.storageDir,
+          'imports',
+          `${newId('import')}.csv`,
+        )
+
+        if (body.content !== undefined) {
+          await mkdir(dirname(filePath), { recursive: true })
+          await writeFile(filePath, body.content, 'utf8')
+        }
 
         const imp = await this.service.createImport({
           organizationId: orgId,

@@ -12,7 +12,6 @@ let testDb: Kysely<AppDatabase> | null = null
 
 function isSqlite(url: string): boolean {
   return (
-    url.startsWith('sqlite://') ||
     url.startsWith('sqlite:') ||
     url.includes(':memory:') ||
     url.includes('.db') ||

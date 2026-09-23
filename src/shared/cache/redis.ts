@@ -22,3 +22,8 @@ export function getRedis(
   }
   return redis
 }
+
+export async function acquireLock(redis: any, key: string, ttl: number): Promise<boolean> {
+  const result = await redis.set(`lock:${key}`, '1', 'PX', ttl, 'NX')
+  return result === 'OK'
+}

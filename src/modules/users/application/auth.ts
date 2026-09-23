@@ -10,7 +10,6 @@ import {
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
 import type { OrganizationRepository } from '@/modules/organizations/infrastructure/PostgresOrganizationRepository.js'
-import type { PasswordResetRepository } from '@/modules/users/infrastructure/PostgresPasswordResetRepository.js'
 import { nanoid } from 'nanoid'
 import { createHash } from 'node:crypto'
 import { logger } from '@/shared/logging/logger.js'
@@ -42,7 +41,6 @@ export class AuthService {
     private readonly userRepo: UserRepository,
     private readonly membershipRepo: MembershipRepository,
     private readonly orgRepo: OrganizationRepository,
-    private readonly resetRepo: PasswordResetRepository,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResult> {
@@ -103,28 +101,6 @@ export class AuthService {
     await revokeSession(token)
   }
 
-  async requestPasswordReset(email: string): Promise<void> {
-    const user = await this.userRepo.findByEmail(email)
-    if (!user) {
-      logger.info({ email }, 'Password reset requested for unknown email')
-      return
-    }
-    const token = nanoid(32)
-    const tokenHash = createHash('sha256').update(token).digest('hex')
-    await this.resetRepo.create({
-      id: newId('prt'),
-      userId: user.id,
-      tokenHash,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    })
-    if (!config.isProduction) {
-      logger.info(
-        { userId: user.id, resetToken: token },
-        'Password reset token (development only)',
-      )
-    }
-  }
-
   async changePassword(
     userId: string,
     currentPassword: string,
@@ -137,17 +113,6 @@ export class AuthService {
     if (!valid) throw new UnauthorizedError('Invalid credentials')
     await this.userRepo.updatePassword(user.id, await hashPassword(newPassword))
     await revokeAllExceptSession(user.id, currentToken)
-  }
-
-  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
-    const tokenHash = createHash('sha256').update(token).digest('hex')
-    const record = await this.resetRepo.findValidByTokenHash(tokenHash)
-    if (!record) throw new UnauthorizedError('Invalid or expired reset token')
-    const user = await this.userRepo.findById(record.user_id)
-    if (!user) throw new UnauthorizedError('Invalid or expired reset token')
-    await this.userRepo.updatePassword(user.id, await hashPassword(newPassword))
-    await this.resetRepo.markUsed(record.id)
-    await revokeAllUserSessions(user.id)
   }
 
   async getMe(

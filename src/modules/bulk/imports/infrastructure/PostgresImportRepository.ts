@@ -14,7 +14,12 @@ export interface ImportRepository {
   }): Promise<ImportRow>
   updateProgress(
     id: string,
-    data: { processed: number; successful: number; failed: number },
+    data: {
+      total?: number
+      processed: number
+      successful: number
+      failed: number
+    },
   ): Promise<void>
   updateStatus(
     id: string,
@@ -70,11 +75,22 @@ export class PostgresImportRepository implements ImportRepository {
 
   async updateProgress(
     id: string,
-    data: { processed: number; successful: number; failed: number },
+    data: {
+      total?: number
+      processed: number
+      successful: number
+      failed: number
+    },
   ): Promise<void> {
     await this.db
       .updateTable('imports')
-      .set({ ...data, updated_at: new Date() })
+      .set({
+        ...(data.total !== undefined ? { total: data.total } : {}),
+        processed: data.processed,
+        successful: data.successful,
+        failed: data.failed,
+        updated_at: new Date(),
+      })
       .where('id', '=', id)
       .execute()
   }

@@ -27,9 +27,7 @@ export const config = {
 
   databaseUrl: getEnv(
     'DATABASE_URL',
-    'postgres://postgres:postgres@localhost:5432/crm',
   ),
-  redisUrl: getEnv('REDIS_URL', 'redis://localhost:6379'),
 
   sessionSecret: getEnv(
     'SESSION_SECRET',
@@ -37,7 +35,6 @@ export const config = {
   ),
   sessionMaxAgeDays: getEnvInt('SESSION_MAX_AGE_DAYS', 30),
   storageDir: getEnv('STORAGE_DIR', './storage'),
-  corsOrigin: getEnv('CORS_ORIGIN', 'http://localhost:5173'),
 
   pagination: {
     defaultLimit: 25,

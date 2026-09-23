@@ -9,9 +9,6 @@ describe('Unit: DealService', () => {
         .fn()
         .mockResolvedValue({ id: 'd1', stage: 'NEW', version: 1 }),
       updateStage: vi.fn().mockResolvedValue({ id: 'd1', stage: 'QUALIFIED' }),
-      findById: vi
-        .fn()
-        .mockResolvedValue({ id: 'd1', stage: 'NEW', version: 1 }),
       update: vi.fn(),
       create: vi.fn(),
       list: vi.fn(),

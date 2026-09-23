@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { getDb } from './shared/database/connection.js'
 import { config } from './shared/config.js'
-
 import { PostgresAuditRepository } from './modules/organizations/infrastructure/PostgresAuditRepository.js'
 import { PostgresCompanyRepository } from './modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 import { PostgresContactRepository } from './modules/crm/contacts/infrastructure/PostgresContactRepository.js'
@@ -13,7 +12,6 @@ import { PostgresMembershipRepository } from './modules/users/infrastructure/Pos
 import { PostgresOrganizationRepository } from './modules/organizations/infrastructure/PostgresOrganizationRepository.js'
 import { PostgresTaskRepository } from './modules/engagement/tasks/infrastructure/PostgresTaskRepository.js'
 import { PostgresUserRepository } from './modules/users/infrastructure/PostgresUserRepository.js'
-
 import { AuditService } from './modules/organizations/application/AuditService.js'
 import { CompanyService } from './modules/crm/companies/application/CompanyService.js'
 import { ContactService } from './modules/crm/contacts/application/ContactService.js'
@@ -23,12 +21,9 @@ import { ImportService } from './modules/bulk/imports/application/ImportService.
 import { LeadService } from './modules/crm/leads/application/LeadService.js'
 import { ConvertLead } from './modules/crm/leads/application/ConvertLead.js'
 import { MemberService } from './modules/organizations/application/MemberService.js'
-import { PostgresMemberRepository } from './modules/organizations/infrastructure/PostgresMemberRepository.js'
 import { OrganizationService } from './modules/organizations/application/OrganizationService.js'
 import { TaskService } from './modules/engagement/tasks/application/TaskService.js'
 import { AuthService } from './modules/users/application/auth.js'
-import { PostgresPasswordResetRepository } from './modules/users/infrastructure/PostgresPasswordResetRepository.js'
-
 import { AuditRoutes } from './modules/organizations/http/auditRoutes.js'
 import { AuthRoutes } from './modules/users/http/authRoutes.js'
 import { CompanyRoutes } from './modules/crm/companies/http/companyRoutes.js'
@@ -72,17 +67,13 @@ export function buildContainer(options: ContainerOptions = {}): AppContainer {
   const exportService = new ExportService(db, exportRepo)
   const importService = new ImportService(db, importRepo)
   const leadService = new LeadService(leadRepo)
-  const memberService = new MemberService(
-    new PostgresMemberRepository(db),
-    userRepo,
-  )
+  const memberService = new MemberService(membershipRepo, userRepo)
   const organizationService = new OrganizationService(organizationRepo)
   const taskService = new TaskService(taskRepo)
   const authService = new AuthService(
     userRepo,
     membershipRepo,
     organizationRepo,
-    new PostgresPasswordResetRepository(db),
   )
   const convertLead = new ConvertLead(db).toFn()
 

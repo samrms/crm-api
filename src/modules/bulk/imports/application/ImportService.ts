@@ -30,7 +30,11 @@ export class ImportService {
       await publishOutboxEvent(trx, {
         organizationId: input.organizationId,
         type: 'IMPORT_CREATED',
-        payload: { importId: id, type: input.type },
+        payload: {
+          importId: id,
+          type: input.type,
+          filePath: input.filePath,
+        },
       })
 
       return imp

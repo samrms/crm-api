@@ -20,12 +20,6 @@ export function getValidLeadTransitions(current: LeadStatus): LeadStatus[] {
   return VALID_TRANSITIONS[current] ?? []
 }
 
-/**
- * BFS through the state machine to find the shortest path of
- * intermediate transitions from `from` to `to`.
- * Returns the list of states to visit (excluding `from`), or null
- * if no path exists.
- */
 export function findTransitionPath(
   from: LeadStatus,
   to: LeadStatus,

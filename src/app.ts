@@ -15,7 +15,6 @@ import { buildContainer } from './container.js'
 
 export interface BuildAppOptions {
   rateLimit?: { max: number; timeWindow: string }
-  /** Overrides where import uploads and export files live. Tests use a temp dir. */
   storageDir?: string
 }
 
@@ -62,11 +61,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
   })
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
-  // Route `schema` options below feed the OpenAPI document only.
-  // Runtime validation stays in Zod (single source of truth, 422 contract).
   app.setValidatorCompiler(() => (data: unknown) => ({ value: data }))
 
-  // Swagger UI needs inline scripts; lift helmet headers for /docs only.
   app.addHook('onSend', async (request, reply) => {
     if (request.url.startsWith('/docs')) {
       reply.removeHeader('content-security-policy')

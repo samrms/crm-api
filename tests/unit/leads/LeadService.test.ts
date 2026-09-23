@@ -8,13 +8,10 @@ describe('Unit: LeadService', () => {
     const repo = {
       findById: vi.fn().mockResolvedValue({
         id: 'l1',
-        status: 'NEW' as LeadStatus,
-        version: 1,
+        status: 'QUALIFIED' as LeadStatus,
+        version: 2,
       }),
       updateStatus: vi
-        .fn()
-        .mockResolvedValue({ id: 'l1', status: 'QUALIFIED', version: 2 }),
-      findById: vi
         .fn()
         .mockResolvedValue({ id: 'l1', status: 'QUALIFIED', version: 2 }),
       update: vi.fn(),

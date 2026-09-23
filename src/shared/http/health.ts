@@ -42,3 +42,11 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
     })
   })
 }
+
+  app.get('/metrics', async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send({
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      timestamp: new Date().toISOString(),
+    })
+  })
