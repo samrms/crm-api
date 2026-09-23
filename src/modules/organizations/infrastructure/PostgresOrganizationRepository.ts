@@ -24,6 +24,7 @@ export class PostgresOrganizationRepository implements OrganizationRepository {
   async findById(id: string): Promise<OrganizationRow | undefined> {
     const row = await this.db
       .selectFrom('organizations')
+      .selectAll()
       .where('id', '=', id)
       .where('deleted_at', 'is', null)
       .executeTakeFirst()
@@ -33,6 +34,7 @@ export class PostgresOrganizationRepository implements OrganizationRepository {
   async findBySlug(slug: string): Promise<OrganizationRow | undefined> {
     const row = await this.db
       .selectFrom('organizations')
+      .selectAll()
       .where('slug', '=', slug)
       .where('deleted_at', 'is', null)
       .executeTakeFirst()

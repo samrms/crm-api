@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 import { authenticate } from '@/shared/auth/authenticate.js'
 import { requireRole } from '@/shared/auth/authorize.js'
 import { ForbiddenError } from '@/shared/errors/AppError.js'
@@ -21,10 +22,12 @@ const updateOrganizationSchema = z
 export class OrganizationRoutes {
   constructor(private readonly service: OrganizationService) {}
   async register(app: FastifyInstance): Promise<void> {
-    app.addHook('preHandler', authenticate)
-
     app.get(
       '/api/v1/organizations/:id',
+      {
+        preHandler: [authenticate],
+        schema: { tags: ['Organizations'], summary: 'Get organization' },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const { id } = request.params as { id: string }
         const org = await this.service.get(id)
@@ -39,7 +42,16 @@ export class OrganizationRoutes {
 
     app.patch(
       '/api/v1/organizations/:id',
-      { preHandler: [requireRole('OWNER', 'ADMIN')] },
+      {
+        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        schema: {
+          tags: ['Organizations'],
+          summary: 'Update organization',
+          body: zodToJsonSchema(updateOrganizationSchema, {
+            target: 'openApi3',
+          }),
+        },
+      },
       async (request: FastifyRequest, reply: FastifyReply) => {
         const { id } = request.params as { id: string }
         if (id !== request.auth!.organizationId) {

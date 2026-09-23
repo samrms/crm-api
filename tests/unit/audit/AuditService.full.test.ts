@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { AuditService } from '../../../src/modules/audit/application/AuditService.js'
+import { AuditService } from '../../../src/modules/organizations/application/AuditService.js'
 
 describe('Unit: AuditService (all aspects)', () => {
   const mockRepo = (overrides?: object) =>

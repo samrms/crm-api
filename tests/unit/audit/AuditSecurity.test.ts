@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { AuditService } from '../../../src/modules/audit/application/AuditService.js'
-import type { AuditRepository } from '../../../src/modules/audit/infrastructure/PostgresAuditRepository.js'
+import { AuditService } from '../../../src/modules/organizations/application/AuditService.js'
+import type { AuditRepository } from '../../../src/modules/organizations/infrastructure/PostgresAuditRepository.js'
 import {
   encodeCursor,
   decodeCursor,

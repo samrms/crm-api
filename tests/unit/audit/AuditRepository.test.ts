@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { PostgresAuditRepository } from '../../../src/modules/audit/infrastructure/PostgresAuditRepository.js'
+import { describe, it, expect } from 'vitest'
+import { PostgresAuditRepository } from '../../../src/modules/organizations/infrastructure/PostgresAuditRepository.js'
 
 describe('Unit: Audit Repository', () => {
   it('implements AuditRepository interface', () => {
