@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { TaskService } from '../../../src/modules/tasks/application/TaskService.js'
-import type { TaskRepository } from '../../../src/modules/tasks/infrastructure/PostgresTaskRepository.js'
+import { TaskService } from '../../../src/modules/engagement/tasks/application/TaskService.js'
+import type { TaskRepository } from '../../../src/modules/engagement/tasks/infrastructure/PostgresTaskRepository.js'
 
 describe('Unit: TaskService', () => {
   it('complete task', async () => {
