@@ -37,6 +37,7 @@ import { PostgresMemberRepository } from './modules/organizations/infrastructure
 import { OrganizationService } from './modules/organizations/application/OrganizationService.js'
 import { TaskService } from './modules/engagement/tasks/application/TaskService.js'
 import { AuthService } from './modules/users/application/auth.js'
+import { PostgresPasswordResetRepository } from './modules/users/infrastructure/PostgresPasswordResetRepository.js'
 
 import { AuditRoutes } from './modules/organizations/http/auditRoutes.js'
 import { AuthRoutes } from './modules/users/http/authRoutes.js'
@@ -144,6 +145,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     userRepo,
     membershipRepo,
     organizationRepo,
+    new PostgresPasswordResetRepository(db),
   )
 
   await new AuthRoutes(authService).register(app)

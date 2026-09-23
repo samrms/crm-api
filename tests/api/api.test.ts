@@ -4,7 +4,9 @@ import type { FastifyInstance } from 'fastify'
 import {
   startTestDatabase,
   stopTestDatabase,
+  getTestDb,
 } from '../fixtures/testDatabase.js'
+import { createHash } from 'node:crypto'
 import {
   createTestOrganization,
   createTestUser,
@@ -848,6 +850,87 @@ describe('API Tests', () => {
       })
 
       expect(res.statusCode).toBe(200)
+    })
+  })
+
+  describe('Auth: Password Reset', () => {
+    it('POST /auth/password-reset/request always returns 200', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password-reset/request',
+        payload: { email: 'nobody@example.com' },
+      })
+
+      expect(res.statusCode).toBe(200)
+    })
+
+    it('POST /auth/password-reset/request creates a token for a known email', async () => {
+      const user = await createTestUser({ email: 'reset@example.com' })
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password-reset/request',
+        payload: { email: 'reset@example.com' },
+      })
+
+      expect(res.statusCode).toBe(200)
+      const rows = await getTestDb()
+        .selectFrom('password_reset_tokens')
+        .selectAll()
+        .where('user_id', '=', user.id)
+        .execute()
+      expect(rows).toHaveLength(1)
+    })
+
+    it('full reset flow rotates credentials and revokes sessions', async () => {
+      const org = await createTestOrganization()
+      const user = await createTestUser({
+        email: 'rotate@example.com',
+        password: 'oldpassword123',
+      })
+      await createTestMembership({ userId: user.id, organizationId: org.id })
+      const { token } = await createTestSession(user.id, org.id)
+
+      const plainToken = 'e2e-reset-token-12345'
+      const tokenHash = createHash('sha256').update(plainToken).digest('hex')
+      await getTestDb()
+        .insertInto('password_reset_tokens')
+        .values({
+          id: 'prt_e2e12345678',
+          user_id: user.id,
+          token_hash: tokenHash,
+          expires_at: new Date(Date.now() + 3600000),
+          created_at: new Date(),
+        })
+        .execute()
+
+      const confirmRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password-reset/confirm',
+        payload: { token: plainToken, password: 'brandnewpassword123' },
+      })
+      expect(confirmRes.statusCode).toBe(200)
+
+      const stale = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        cookies: { session: token },
+      })
+      expect(stale.statusCode).toBe(401)
+
+      const loginRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: 'rotate@example.com', password: 'brandnewpassword123' },
+      })
+      expect(loginRes.statusCode).toBe(200)
+
+      const reuseRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/password-reset/confirm',
+        payload: { token: plainToken, password: 'anotherpassword123' },
+      })
+      expect(reuseRes.statusCode).toBe(401)
     })
   })
 })

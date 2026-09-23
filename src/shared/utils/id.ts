@@ -16,6 +16,7 @@ type Prefix =
   | 'ob'
   | 'import'
   | 'act'
+  | 'prt'
 
 export function newId(prefix: Prefix): string {
   return `${prefix}_${nanoid(12)}`

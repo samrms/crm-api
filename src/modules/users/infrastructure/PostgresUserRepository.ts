@@ -12,6 +12,7 @@ export interface UserRepository {
     name: string
     passwordHash: string
   }): Promise<UserRow>
+  updatePassword(id: string, passwordHash: string): Promise<void>
 }
 
 export class PostgresUserRepository implements UserRepository {
@@ -57,5 +58,13 @@ export class PostgresUserRepository implements UserRepository {
       .returningAll()
       .executeTakeFirstOrThrow()
     return row as UserRow
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.db
+      .updateTable('users')
+      .set({ password_hash: passwordHash, updated_at: new Date() })
+      .where('id', '=', id)
+      .execute()
   }
 }

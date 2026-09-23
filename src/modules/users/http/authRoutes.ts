@@ -17,6 +17,15 @@ const loginSchema = z.object({
   password: z.string(),
 })
 
+const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+})
+
+const passwordResetConfirmSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(128),
+})
+
 export class AuthRoutes {
   constructor(private readonly service: AuthService) {}
   async register(app: FastifyInstance): Promise<void> {
@@ -67,6 +76,50 @@ export class AuthRoutes {
           _links: {
             me: { href: '/api/v1/auth/me' },
             logout: { href: '/api/v1/auth/logout', method: 'POST' },
+          },
+        })
+      },
+    )
+
+    app.post(
+      '/api/v1/auth/password-reset/request',
+      {
+        schema: {
+          tags: ['Auth'],
+          summary: 'Request a password reset token',
+          body: zodToJsonSchema(passwordResetRequestSchema, { target: 'openApi3' }),
+        },
+      },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = passwordResetRequestSchema.parse(request.body)
+        await this.service.requestPasswordReset(body.email)
+        return reply.status(200).send({
+          data: {
+            message: 'If an account exists for this email, a reset token was created',
+          },
+          _links: {
+            login: { href: '/api/v1/auth/login', method: 'POST' },
+          },
+        })
+      },
+    )
+
+    app.post(
+      '/api/v1/auth/password-reset/confirm',
+      {
+        schema: {
+          tags: ['Auth'],
+          summary: 'Confirm password reset with token',
+          body: zodToJsonSchema(passwordResetConfirmSchema, { target: 'openApi3' }),
+        },
+      },
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = passwordResetConfirmSchema.parse(request.body)
+        await this.service.confirmPasswordReset(body.token, body.password)
+        return reply.status(200).send({
+          data: { message: 'Password updated' },
+          _links: {
+            login: { href: '/api/v1/auth/login', method: 'POST' },
           },
         })
       },
