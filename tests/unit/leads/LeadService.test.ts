@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { LeadService } from '../../../src/modules/leads/application/LeadService.js'
-import type { LeadRepository } from '../../../src/modules/leads/infrastructure/PostgresLeadRepository.ts'
-import type { LeadStatus } from '../../../src/modules/leads/domain/LeadState.js'
+import { LeadService } from '../../../src/modules/crm/leads/application/LeadService.js'
+import type { LeadRepository } from '../../../src/modules/crm/leads/infrastructure/PostgresLeadRepository.ts'
+import type { LeadStatus } from '../../../src/modules/crm/leads/domain/LeadState.js'
 
 describe('Unit: LeadService', () => {
   it('qualify transitions state', async () => {

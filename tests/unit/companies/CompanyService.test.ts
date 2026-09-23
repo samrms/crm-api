@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { CompanyService } from '../../../src/modules/companies/application/CompanyService.js'
-import type { CompanyRepository } from '../../../src/modules/companies/infrastructure/PostgresCompanyRepository.js'
+import { CompanyService } from '../../../src/modules/crm/companies/application/CompanyService.js'
+import type { CompanyRepository } from '../../../src/modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 
 describe('Unit: CompanyService', () => {
   it('create and find', async () => {

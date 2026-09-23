@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { DealService } from '../../../src/modules/deals/application/DealService.js'
-import type { DealRepository } from '../../../src/modules/deals/infrastructure/PostgresDealRepository.js'
+import { DealService } from '../../../src/modules/crm/deals/application/DealService.js'
+import type { DealRepository } from '../../../src/modules/crm/deals/infrastructure/PostgresDealRepository.js'
 
 describe('Unit: DealService', () => {
   it('advance stage', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { ContactService } from '../../../src/modules/contacts/application/ContactService.js'
-import type { ContactRepository } from '../../../src/modules/contacts/infrastructure/PostgresContactRepository.js'
+import { ContactService } from '../../../src/modules/crm/contacts/application/ContactService.js'
+import type { ContactRepository } from '../../../src/modules/crm/contacts/infrastructure/PostgresContactRepository.js'
 
 describe('Unit: ContactService', () => {
   it('create contact', async () => {

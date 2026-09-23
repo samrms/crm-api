@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   canTransitionDeal,
   getValidDealTransitions,
-} from '../../../src/modules/deals/domain/DealState.ts'
+} from '../../../src/modules/crm/deals/domain/DealState.ts'
 
 describe('Deal State Machine', () => {
   describe('valid transitions', () => {

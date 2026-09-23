@@ -3,7 +3,7 @@ import {
   canTransitionLead,
   getValidLeadTransitions,
   findTransitionPath,
-} from '../../../src/modules/leads/domain/LeadState.ts'
+} from '../../../src/modules/crm/leads/domain/LeadState.ts'
 
 describe('Lead State Machine', () => {
   describe('valid transitions', () => {
