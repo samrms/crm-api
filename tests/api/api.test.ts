@@ -790,4 +790,53 @@ describe('API Tests', () => {
       ).toBeDefined()
     })
   })
+
+  describe('Audit', () => {
+    it('GET /api/v1/audit-events requires authentication', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/audit-events',
+      })
+
+      expect(res.statusCode).toBe(401)
+    })
+
+    it('GET /api/v1/audit-events forbids MEMBER role', async () => {
+      const org = await createTestOrganization()
+      const user = await createTestUser()
+      await createTestMembership({
+        userId: user.id,
+        organizationId: org.id,
+        role: 'MEMBER',
+      })
+      const { token } = await createTestSession(user.id, org.id)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/audit-events',
+        cookies: { session: token },
+      })
+
+      expect(res.statusCode).toBe(403)
+    })
+
+    it('GET /api/v1/audit-events allows OWNER role', async () => {
+      const org = await createTestOrganization()
+      const user = await createTestUser()
+      await createTestMembership({
+        userId: user.id,
+        organizationId: org.id,
+        role: 'OWNER',
+      })
+      const { token } = await createTestSession(user.id, org.id)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/audit-events',
+        cookies: { session: token },
+      })
+
+      expect(res.statusCode).toBe(200)
+    })
+  })
 })

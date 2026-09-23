@@ -272,4 +272,76 @@ describe('Integration: Database Repositories', () => {
       expect(stale).toBeUndefined()
     })
   })
+
+  describe('Database Constraints', () => {
+    it('organizations: unique slug constraint', async () => {
+      const db = getTestDb()
+      await createTestOrganization({ slug: 'unique-slug' })
+      await expect(
+        db
+          .insertInto('organizations')
+          .values({
+            id: 'org_dup',
+            name: 'Duplicate',
+            slug: 'unique-slug',
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute(),
+      ).rejects.toThrow()
+    })
+
+    it('users: unique email constraint', async () => {
+      const db = getTestDb()
+      await createTestUser({ email: 'unique@test.com' })
+      await expect(
+        db
+          .insertInto('users')
+          .values({
+            id: 'user_dup',
+            email: 'unique@test.com',
+            name: 'Duplicate',
+            password_hash: 'hash',
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .execute(),
+      ).rejects.toThrow()
+    })
+
+    it('companies: soft delete excludes from queries', async () => {
+      const db = getTestDb()
+      const org = await createTestOrganization()
+      const { id } = await db
+        .insertInto('companies')
+        .values({
+          id: 'co_soft',
+          organization_id: org.id,
+          name: 'Soft Delete Test',
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      const active = await db
+        .selectFrom('companies')
+        .selectAll()
+        .where('organization_id', '=', org.id)
+        .where('deleted_at', 'is', null)
+        .execute()
+      expect(active).toHaveLength(1)
+      await db
+        .updateTable('companies')
+        .set({ deleted_at: new Date() })
+        .where('id', '=', id)
+        .execute()
+      const afterDelete = await db
+        .selectFrom('companies')
+        .selectAll()
+        .where('organization_id', '=', org.id)
+        .where('deleted_at', 'is', null)
+        .execute()
+      expect(afterDelete).toHaveLength(0)
+    })
+  })
 })

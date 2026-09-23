@@ -19,7 +19,7 @@ external services.
   with the change that caused them
 - **Keyset cursor pagination + HATEOAS** — stable `created_at DESC, id DESC` cursors, state-aware
   `_links` that only advertise legal next actions
-- **Hermetic tests** — 206 tests across 6 suites (unit, integration, API, E2E, security,
+- **Hermetic tests** — 199 tests across 6 suites (unit, integration, API, E2E, security,
   concurrency) that run on an in-memory SQLite harness — no Docker required
 - **Production shape** — multi-stage Docker build, non-root container, Bun-native GitHub Actions CI
 
@@ -259,13 +259,13 @@ way `pg` does. No containers, no network, no shared state between files.
 
 | Suite         | Command                | Files | Tests | What it proves                                |
 | ------------- | ---------------------- | ----: | ----: | --------------------------------------------- |
-| unit          | `bun run test:unit`    |    25 |   107 | services, state machines, utils, pure logic   |
-| integration   | `bun run test:integration` |  5 |    33 | repositories, tenant isolation, outbox writes |
-| api           | `bun run test:api`     |     1 |    34 | contracts, errors, pagination, HATEOAS, RBAC  |
+| unit          | `bun run test:unit`    |    21 |   100 | services, state machines, utils, pure logic   |
+| integration   | `bun run test:integration` |  4 |    30 | repositories, tenant isolation, outbox writes |
+| api           | `bun run test:api`     |     1 |    37 | contracts, errors, pagination, HATEOAS, RBAC  |
 | e2e           | `bun run test:e2e`     |     1 |     5 | full workflows: register → convert → win      |
 | security      | `bun run test:security`|     1 |    21 | IDOR, auth bypass, mass assignment, CSV, rate limit |
 | concurrency   | `bun run test:concurrency` | 1 |     6 | optimistic locking, idempotent duplicate jobs |
-| **total**     | `bun run test`         |    34 |   206 |                                               |
+| **total**     | `bun run test`         |    29 |   199 |                                               |
 
 ## Getting Started
 
@@ -337,7 +337,7 @@ answer.
 `.github/workflows/ci.yml` (Bun-native, no external services):
 
 1. **quality** — `bun install --frozen-lockfile`, `lint`, `typecheck`, `format:check`
-2. **tests** — the full 206-test suite
+2. **tests** — the full 199-test suite
 3. **build** — `tsc` compile + `docker build` (gated on the previous two)
 
 ## Project Structure
