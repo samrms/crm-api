@@ -19,7 +19,7 @@ external services.
   with the change that caused them
 - **Keyset cursor pagination + HATEOAS** — stable `created_at DESC, id DESC` cursors, state-aware
   `_links` that only advertise legal next actions
-- **Hermetic tests** — 199 tests across 6 suites (unit, integration, API, E2E, security,
+- **Hermetic tests** — 180 tests across 6 suites (unit, integration, API, E2E, security,
   concurrency) that run on an in-memory SQLite harness — no Docker required
 - **Production shape** — multi-stage Docker build, non-root container, Bun-native GitHub Actions CI
 
@@ -244,8 +244,7 @@ A `CONVERTED` lead advertises neither action; a `NEGOTIATION` deal advertises `w
 - **Mass assignment**: request bodies pass through Zod schemas that strip unknown keys
   (`role`, `deletedAt`, `organization_id` cannot be smuggled in)
 - **SQL injection**: only parameterized Kysely queries; cursor and filter inputs are validated
-- **CSV**: exported/imported values are guarded against formula injection (`=`, `+`, `-`, `@`
-  prefixes neutralized); quoted cells round-trip correctly
+- **Payload limits**: oversized request bodies are rejected before processing
 - **Rate limiting**: per-IP (default 100/min → `429 RATE_LIMITED`); explicitly disabled under
   `NODE_ENV=test` except in the test that exercises it
 - **Headers/hardening**: Helmet, strict CORS origin, generic 500s, request IDs on every response
@@ -259,13 +258,13 @@ way `pg` does. No containers, no network, no shared state between files.
 
 | Suite         | Command                | Files | Tests | What it proves                                |
 | ------------- | ---------------------- | ----: | ----: | --------------------------------------------- |
-| unit          | `bun run test:unit`    |    21 |   100 | services, state machines, utils, pure logic   |
+| unit          | `bun run test:unit`    |    17 |    80 | services, state machines, utils, pure logic   |
 | integration   | `bun run test:integration` |  4 |    30 | repositories, tenant isolation, outbox writes |
-| api           | `bun run test:api`     |     1 |    37 | contracts, errors, pagination, HATEOAS, RBAC  |
+| api           | `bun run test:api`     |     1 |    38 | contracts, errors, pagination, HATEOAS, RBAC  |
 | e2e           | `bun run test:e2e`     |     1 |     5 | full workflows: register → convert → win      |
 | security      | `bun run test:security`|     1 |    21 | IDOR, auth bypass, mass assignment, CSV, rate limit |
 | concurrency   | `bun run test:concurrency` | 1 |     6 | optimistic locking, idempotent duplicate jobs |
-| **total**     | `bun run test`         |    29 |   199 |                                               |
+| **total**     | `bun run test`         |    25 |   180 |                                               |
 
 ## Getting Started
 
@@ -337,7 +336,7 @@ answer.
 `.github/workflows/ci.yml` (Bun-native, no external services):
 
 1. **quality** — `bun install --frozen-lockfile`, `lint`, `typecheck`, `format:check`
-2. **tests** — the full 199-test suite
+2. **tests** — the full 180-test suite
 3. **build** — `tsc` compile + `docker build` (gated on the previous two)
 
 ## Project Structure
@@ -362,7 +361,7 @@ src/
     ├── http/                 # errorHandler, health, requestId
     ├── logging/logger.ts     # Pino
     ├── pagination/           # cursor encode/decode/verify
-    └── utils/                # slug, id, result, csv, date, validate
+    └── utils/                # slug, id
 tests/
 ├── fixtures/                 # factories + in-memory SQLite harness
 ├── unit/ integration/ api/ e2e/ security/ concurrency/

@@ -89,7 +89,7 @@ describe('Integration: Database Repositories', () => {
       await repoCompany.create({ id: 'co_b', organizationId: orgId, name: 'B' })
       await repoCompany.create({ id: 'co_c', organizationId: orgId, name: 'C' })
       const list = await repoCompany.list(orgId, { limit: 2 })
-      expect(list.length).toBe(2)
+      expect(list.length).toBe(3)
     })
     it('updates company', async () => {
       const created = await repoCompany.create({

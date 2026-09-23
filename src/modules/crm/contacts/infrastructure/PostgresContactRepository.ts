@@ -121,7 +121,7 @@ export class PostgresContactRepository implements ContactRepository {
     }
 
     const rows = await query.execute()
-    return rows.slice(0, opts.limit) as ContactRow[]
+    return rows as ContactRow[]
   }
 
   async create(data: {

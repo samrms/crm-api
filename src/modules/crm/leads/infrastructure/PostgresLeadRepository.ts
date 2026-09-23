@@ -98,7 +98,7 @@ export class PostgresLeadRepository implements LeadRepository {
     }
 
     const rows = await query.execute()
-    return rows.slice(0, opts.limit) as LeadRow[]
+    return rows as LeadRow[]
   }
 
   async create(data: {

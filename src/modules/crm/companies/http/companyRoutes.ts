@@ -58,7 +58,7 @@ export class CompanyRoutes {
         const companies = await this.service.list(
           request.auth!.organizationId,
           {
-            limit: query.limit + 1,
+            limit: query.limit,
             name: query.name,
             after: cursor
               ? Buffer.from(
@@ -84,7 +84,7 @@ export class CompanyRoutes {
             nextCursor:
               hasNextPage && lastCompany
                 ? encodeCursor({
-                    createdAt: lastCompany.created_at.toISOString(),
+                    createdAt: new Date(lastCompany.created_at).toISOString(),
                     id: lastCompany.id,
                   })
                 : null,

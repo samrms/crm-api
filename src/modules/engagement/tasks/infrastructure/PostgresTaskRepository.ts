@@ -89,7 +89,7 @@ export class PostgresTaskRepository implements TaskRepository {
     }
 
     const rows = await query.execute()
-    return rows.slice(0, opts.limit) as TaskRow[]
+    return rows as TaskRow[]
   }
 
   async create(data: {

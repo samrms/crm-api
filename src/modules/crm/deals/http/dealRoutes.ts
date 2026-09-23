@@ -97,7 +97,9 @@ export class DealRoutes {
             hasNextPage,
             nextCursor: hasNextPage
               ? encodeCursor({
-                  createdAt: data[data.length - 1]!.created_at.toISOString(),
+                  createdAt: new Date(
+                    data[data.length - 1]!.created_at,
+                  ).toISOString(),
                   id: data[data.length - 1]!.id,
                 })
               : null,

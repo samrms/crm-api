@@ -100,7 +100,7 @@ export class PostgresCompanyRepository implements CompanyRepository {
     }
 
     const rows = await query.execute()
-    return rows.slice(0, opts.limit) as CompanyRow[]
+    return rows as CompanyRow[]
   }
 
   async create(data: {

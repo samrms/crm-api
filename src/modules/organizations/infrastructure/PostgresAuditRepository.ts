@@ -85,7 +85,7 @@ export class PostgresAuditRepository implements AuditRepository {
     }
 
     const rows = await query.execute()
-    return rows.slice(0, opts.limit) as AuditEventRow[]
+    return rows as AuditEventRow[]
   }
 
   async create(data: {
