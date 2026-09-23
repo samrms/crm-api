@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { AuditRepository } from '@/modules/organizations/infrastructure/PostgresAuditRepository.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 
@@ -35,7 +35,7 @@ export class AuditService {
 
   async createAuditEvent(data: UpdateAuditInput) {
     return this.repo.create({
-      id: `aud_${nanoid(12)}`,
+      id: newId('aud'),
       ...data,
     })
   }

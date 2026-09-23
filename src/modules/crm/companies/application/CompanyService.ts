@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { CompanyRepository } from '@/modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 
@@ -25,7 +25,7 @@ export class CompanyService {
   constructor(private readonly repo: CompanyRepository) {}
 
   async create(input: CreateCompanyInput) {
-    const id = `co_${nanoid(12)}`
+    const id = newId('co')
     return this.repo.create({
       id,
       organizationId: input.organizationId,

@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { MemberRepository } from '@/modules/organizations/infrastructure/PostgresMemberRepository.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import { NotFoundError, ConflictError } from '@/shared/errors/AppError.js'
@@ -43,7 +43,7 @@ export class MemberService {
       throw new ConflictError('User is already a member of this organization')
     }
 
-    const id = `mem_${nanoid(12)}`
+    const id = newId('mem')
     return this.membershipRepo.create({
       id,
       userId: user.id,

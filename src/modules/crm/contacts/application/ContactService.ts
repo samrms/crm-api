@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { ContactRepository } from '@/modules/crm/contacts/infrastructure/PostgresContactRepository.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 
@@ -28,7 +28,7 @@ export interface UpdateContactInput {
 export class ContactService {
   constructor(private readonly repo: ContactRepository) {}
   async create(input: CreateContactInput) {
-    const id = `ct_${nanoid(12)}`
+    const id = newId('ct')
     return this.repo.create({
       id,
       organizationId: input.organizationId,

@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { TaskRepository } from '@/modules/engagement/tasks/infrastructure/PostgresTaskRepository.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 
@@ -29,7 +29,7 @@ export interface UpdateTaskInput {
 export class TaskService {
   constructor(private readonly repo: TaskRepository) {}
   async create(input: CreateTaskInput) {
-    const id = `task_${nanoid(12)}`
+    const id = newId('task')
     return this.repo.create({
       id,
       organizationId: input.organizationId,

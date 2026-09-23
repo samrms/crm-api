@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { LeadRepository } from '@/modules/crm/leads/infrastructure/PostgresLeadRepository.js'
 import { findTransitionPath } from '@/modules/crm/leads/domain/LeadState.js'
 import {
@@ -32,7 +32,7 @@ export class LeadService {
   constructor(private readonly repo: LeadRepository) {}
   async create(input: CreateLeadInput) {
     return this.repo.create({
-      id: `ld_${nanoid(12)}`,
+      id: newId('ld'),
       organizationId: input.organizationId,
       email: input.email,
       firstName: input.firstName,

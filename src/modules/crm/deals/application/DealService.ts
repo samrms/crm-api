@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
 import type { DealRepository } from '@/modules/crm/deals/infrastructure/PostgresDealRepository.js'
 import { canTransitionDeal } from '@/modules/crm/deals/domain/DealState.js'
 import {
@@ -34,7 +34,7 @@ export class DealService {
   constructor(private readonly repo: DealRepository) {}
   async create(input: CreateDealInput) {
     return this.repo.create({
-      id: `dl_${nanoid(12)}`,
+      id: newId('dl'),
       organizationId: input.organizationId,
       title: input.title,
       companyId: input.companyId,

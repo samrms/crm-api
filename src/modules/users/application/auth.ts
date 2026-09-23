@@ -1,4 +1,5 @@
-import { nanoid } from 'nanoid'
+import { newId } from '@/shared/utils/id.js'
+import { toSlug } from '@/shared/utils/slug.js'
 import { hashPassword, verifyPassword } from '@/shared/auth/password.js'
 import { createSession, revokeSession } from '@/shared/auth/session.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
@@ -37,9 +38,9 @@ export class AuthService {
     const existing = await this.userRepo.findByEmail(input.email)
     if (existing)
       throw new ConflictError('A user with this email already exists')
-    const userId = `user_${nanoid(12)}`
-    const orgId = `org_${nanoid(12)}`
-    const membershipId = `mem_${nanoid(12)}`
+    const userId = newId('user')
+    const orgId = newId('org')
+    const membershipId = newId('mem')
     const passwordHash = await hashPassword(input.password)
     const user = await this.userRepo.create({
       id: userId,
@@ -47,10 +48,7 @@ export class AuthService {
       name: input.name,
       passwordHash,
     })
-    const slug = input.organizationName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
+    const slug = toSlug(input.organizationName)
     const org = await this.orgRepo.create({
       id: orgId,
       name: input.organizationName,
