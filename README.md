@@ -1,61 +1,84 @@
-# CRM API — Modular Monolith (Distributed Ready)
+# CRM API
 
-A modular monolith with clear module boundaries: `users`, `crm`, `bulk`, `engagement`, `shared`. Each module can become an independent distributed service.
+A multi-tenant CRM REST API: companies, contacts, leads, and deals, with
+session-cookie authentication and cursor pagination. Built with **Bun,
+Fastify, TypeScript, Kysely (PostgreSQL)**, and **Redis**.
 
-## Architecture
+Focus is backend correctness rather than breadth: tenant isolation enforced in
+the data layer, explicit domain state machines, optimistic concurrency, a
+single error contract, and a hermetic test suite that needs no external
+services.
 
-- `src/modules/` — domain modules (independent deploy units)
-- `src/shared/` — common infrastructure (database, auth, config, logging)
-- `docker/` — container definitions
-- `tests/` — tests per module
+## Quick start
 
-## Modules
-
-- `users/` — auth, sessions, password reset
-- `crm/` — companies, contacts, leads, deals
-- `bulk/` — CSV import/export
-- `engagement/` — tasks, activities
-- `shared/` — cross-cutting concerns
-
-## Run
+Requires [Bun](https://bun.sh) ≥ 1.3 and Node.js ≥ 22.5 (the test runner uses
+`node:sqlite`). Docker is optional.
 
 ```bash
-bun run db:migrate:up
+bun install
+cp .env.example .env      # defaults to in-memory SQLite — nothing to install
 bun run dev
 ```
 
-A multi-tenant CRM REST API built with **Bun, Fastify, TypeScript, PostgreSQL and Redis**. A portfolio
-project focused on backend engineering quality: explicit domain state machines, strict multi-tenancy,
-optimistic concurrency, a transactional outbox, and a hermetic test suite that runs without any
-external services.
+Migrations run at boot, so the API is usable immediately:
 
-## Quick Start
+- API — <http://localhost:3000>
+- Swagger UI — <http://localhost:3000/docs>
+- Health — <http://localhost:3000/health>
 
-**Prerequisites**: [Bun](https://bun.sh) ≥ 1.1, Node.js ≥ 22.5 (the test runner uses `node:sqlite`),
-Docker (for Postgres/Redis).
-
-```bash
-bun install                     # install dependencies
-cp .env.example .env            # configure the environment
-
-docker compose up -d postgres   # local PostgreSQL
-bun run migrate                 # apply migrations
-bun run seed                    # demo data (Acme org)
-
-bun run dev                     # API on http://localhost:3000
-```
-
-Demo login (development only): `owner@acme.test` / `secret1234`.
-Interactive docs: http://localhost:3000/docs
+The default `DATABASE_URL=sqlite://` database is **in-memory**: empty on every
+start, discarded on exit. Load demo data if you want something to look at:
 
 ```bash
-bun run test                    # full suite — 180 tests, no services needed
-bun run lint && bun run typecheck
+bun run seed              # owner@acme.test / secret1234
 ```
 
-## Docs
+To use PostgreSQL and Redis instead:
 
-- [Read](docs/read.md) — architecture, API, security
-- [Architecture](docs/architecture.md) — minimal modular
-- [Security](docs/security.md) — authentication, authorization, headers
-- [API Auth](docs/api/auth.md) — login, register, session
+```bash
+bun run docker:up         # postgres, redis, api
+```
+
+## Modules
+
+| Module | Endpoints |
+| --- | --- |
+| `users` | `/api/v1/auth/*` — register, login, logout, password change, `/me` |
+| `crm` | companies, contacts, leads (incl. conversion), deals |
+| `bulk` | CSV import/export job creation and status |
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | server with watch mode |
+| `bun run start` | server without watch mode |
+| `bun run check` | lint + typecheck + format check |
+| `bun run test` | full test suite |
+| `bun run test:watch` / `test:coverage` | watch mode / coverage |
+| `bun run db:migrate:up` | apply pending migrations |
+| `bun run db:migrate:down` | roll back the last migration |
+| `bun run seed` | load demo data |
+| `bun run docker:up` / `down` / `logs` | local Postgres + Redis + API |
+| `bun run build` | compile to `dist/` |
+
+## Documentation
+
+Full documentation lives in [`docs/`](docs):
+
+| Section | Contents |
+| --- | --- |
+| [`docs/adr`](docs/adr) | architecture decisions and their trade-offs |
+| [`docs/api`](docs/api) | authentication, response conventions, OpenAPI |
+| [`docs/architecture`](docs/architecture) | overview, module layout, data model, request lifecycle |
+| [`docs/operations`](docs/operations) | local development, Docker, Render, testing, troubleshooting |
+| [`docs/security`](docs/security) | security checklist and threat model |
+
+Start with [`docs/architecture/overview.md`](docs/architecture/overview.md).
+
+## Deployment
+
+`render.yml` is a Render Blueprint: it provisions the web service, a Key Value
+(Redis) instance, and Postgres, wiring connection strings automatically and
+running migrations before each deploy. See
+[`docs/operations/render.md`](docs/operations/render.md).
