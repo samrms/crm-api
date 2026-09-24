@@ -50,11 +50,11 @@ describe('DATABASE_URL switcher', () => {
       expect(probe.rows).toHaveLength(1)
 
       await new DatabaseMigrator(db).up()
-      const [{ count }] = (
-        await sql<{ count: number }>`select count(*) as count
-        from kysely_migrations`.execute(db)
-      ).rows
-      expect(Number(count)).toBe(14)
+      const latest = await sql<{
+        name: string
+      }>`select name from kysely_migrations
+        order by timestamp desc limit 1`.execute(db)
+      expect(latest.rows[0]?.name).toBe('015_create_password_reset_tokens')
 
       const now = new Date()
       await db
