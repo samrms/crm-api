@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck && bun run format:check",
     "test:watch": "vitest",
-    "prebuild": "bun run typecheck",
+    "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && bun run typecheck",
     "db:migrate:up": "bun src/shared/database/migrate.ts up",
     "db:migrate:down": "bun src/shared/database/migrate.ts down",
     "db:reset": "bun run db:migrate:down && bun run db:migrate:up",
