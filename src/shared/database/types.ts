@@ -190,15 +190,6 @@ export interface ImportsTable {
   updated_at: Date
 }
 
-export interface PasswordResetTokensTable {
-  id: string
-  user_id: string
-  token_hash: string
-  expires_at: Date
-  used_at: Date | null
-  created_at: Date
-}
-
 export interface ExportsTable {
   id: string
   organization_id: string
