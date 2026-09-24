@@ -1,5 +1,6 @@
 import { newId } from '@/shared/utils/id.js'
 import type { ContactRepository } from '@/modules/crm/contacts/infrastructure/PostgresContactRepository.js'
+import type { CompanyRepository } from '@/modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 
 export interface CreateContactInput {
@@ -26,8 +27,13 @@ export interface UpdateContactInput {
 }
 
 export class ContactService {
-  constructor(private readonly repo: ContactRepository) {}
+  constructor(
+    private readonly repo: ContactRepository,
+    private readonly companyRepo: CompanyRepository,
+  ) {}
+
   async create(input: CreateContactInput) {
+    await this.assertCompanyInOrg(input.companyId, input.organizationId)
     const id = newId('ct')
     return this.repo.create({
       id,
@@ -43,6 +49,7 @@ export class ContactService {
   }
 
   async update(input: UpdateContactInput) {
+    await this.assertCompanyInOrg(input.companyId, input.organizationId)
     const result = await this.repo.update(
       input.contactId,
       input.organizationId,
@@ -79,5 +86,18 @@ export class ContactService {
     if (!deleted) {
       throw new NotFoundError('Contact', id)
     }
+  }
+
+  /**
+   * A company id from another organization must be indistinguishable from one
+   * that does not exist, so this throws NotFoundError like every other miss.
+   */
+  private async assertCompanyInOrg(
+    companyId: string | undefined,
+    organizationId: string,
+  ): Promise<void> {
+    if (!companyId) return
+    const company = await this.companyRepo.findById(companyId, organizationId)
+    if (!company) throw new NotFoundError('Company', companyId)
   }
 }

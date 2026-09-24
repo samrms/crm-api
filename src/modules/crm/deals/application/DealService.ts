@@ -1,5 +1,8 @@
 import { newId } from '@/shared/utils/id.js'
 import type { DealRepository } from '@/modules/crm/deals/infrastructure/PostgresDealRepository.js'
+import type { CompanyRepository } from '@/modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
+import type { ContactRepository } from '@/modules/crm/contacts/infrastructure/PostgresContactRepository.js'
+import type { LeadRepository } from '@/modules/crm/leads/infrastructure/PostgresLeadRepository.js'
 import { canTransitionDeal } from '@/modules/crm/deals/domain/DealState.js'
 import {
   NotFoundError,
@@ -31,8 +34,15 @@ export interface UpdateDealInput {
 }
 
 export class DealService {
-  constructor(private readonly repo: DealRepository) {}
+  constructor(
+    private readonly repo: DealRepository,
+    private readonly companyRepo: CompanyRepository,
+    private readonly contactRepo: ContactRepository,
+    private readonly leadRepo: LeadRepository,
+  ) {}
+
   async create(input: CreateDealInput) {
+    await this.assertReferencesInOrg(input)
     return this.repo.create({
       id: newId('dl'),
       organizationId: input.organizationId,
@@ -47,6 +57,7 @@ export class DealService {
   }
 
   async update(input: UpdateDealInput) {
+    await this.assertReferencesInOrg(input)
     const deal = await this.repo.findById(input.dealId, input.organizationId)
     if (!deal) throw new NotFoundError('Deal', input.dealId)
 
@@ -151,5 +162,37 @@ export class DealService {
       throw new OptimisticLockError('Deal')
     }
     return row
+  }
+
+  /**
+   * A company/contact/lead id from another organization must be
+   * indistinguishable from one that does not exist, so each miss throws
+   * NotFoundError like every other lookup failure.
+   */
+  private async assertReferencesInOrg(input: {
+    organizationId: string
+    companyId?: string
+    contactId?: string
+    leadId?: string
+  }): Promise<void> {
+    const { organizationId } = input
+    if (input.companyId) {
+      const company = await this.companyRepo.findById(
+        input.companyId,
+        organizationId,
+      )
+      if (!company) throw new NotFoundError('Company', input.companyId)
+    }
+    if (input.contactId) {
+      const contact = await this.contactRepo.findById(
+        input.contactId,
+        organizationId,
+      )
+      if (!contact) throw new NotFoundError('Contact', input.contactId)
+    }
+    if (input.leadId) {
+      const lead = await this.leadRepo.findById(input.leadId, organizationId)
+      if (!lead) throw new NotFoundError('Lead', input.leadId)
+    }
   }
 }

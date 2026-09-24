@@ -54,8 +54,13 @@ export class Container {
     const membershipRepo = new PostgresMembershipRepository(db)
 
     this.companyService = new CompanyService(companyRepo)
-    this.contactService = new ContactService(contactRepo)
-    this.dealService = new DealService(dealRepo)
+    this.contactService = new ContactService(contactRepo, companyRepo)
+    this.dealService = new DealService(
+      dealRepo,
+      companyRepo,
+      contactRepo,
+      leadRepo,
+    )
     this.exportService = new ExportService(exportRepo)
     this.importService = new ImportService(importRepo)
     this.leadService = new LeadService(leadRepo)
