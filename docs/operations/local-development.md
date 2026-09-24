@@ -59,6 +59,7 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run dev` | server with watch mode |
 | `bun run start` | server without watch mode |
 | `bun run check` | lint + typecheck + format check |
+| `bun run ci:check` | fail if `ci.yml` runs a script `package.json` no longer defines |
 | `bun run lint` / `lint:fix` | ESLint over `src/` and `tests/` |
 | `bun run format` / `format:check` | Prettier |
 | `bun run typecheck` | `tsc --noEmit` |
@@ -95,9 +96,13 @@ Four scripts in `.githooks/`, all runnable with `bun run`:
 | Script | What it guarantees |
 | --- | --- |
 | `pre:build` | `dist/` is empty before compiling, and types check |
-| `pre:push` | lint, typecheck, format, tests, build, and the image gate |
+| `pre:push` | workflow drift, lint, typecheck, format, tests, build, and the image gate |
 | `pre:deploy` | the tree is clean, the gates pass, pending migrations are reported |
 | `pre:docker` | the image builds, boots, and answers `/health` |
+
+`pre:push` starts with `ci:check`: the gate runs package scripts, not the
+workflow, so renaming one would keep every local gate green while CI started
+failing with "script not found". `ci:check` reads `ci.yml` and fails first.
 
 `pre:deploy` is not a Git hook - Git has no such event. `pre:push` doubles as
 one: point Git at the committed file once per clone.

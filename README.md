@@ -54,6 +54,7 @@ bun run docker:up         # postgres, redis, api
 | `bun run dev` | server with watch mode |
 | `bun run start` | server without watch mode |
 | `bun run check` | lint + typecheck + format check |
+| `bun run ci:check` | fail if `ci.yml` references a script that no longer exists |
 | `bun run test` | full test suite |
 | `bun run test:watch` / `test:coverage` | watch mode / coverage |
 | `bun run pre:build` | clean `dist/` and typecheck (run by `build`) |

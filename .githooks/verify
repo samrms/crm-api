@@ -12,6 +12,9 @@ cd "$(dirname "$0")/.."
 # shellcheck source=.githooks/lib.sh
 . .githooks/lib.sh
 
+log "workflow drift (ci.yml vs package.json)"
+bun run ci:check
+
 log "lint, typecheck, format check"
 bun run check
 

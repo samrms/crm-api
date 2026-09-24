@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
+    "pre:build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && bun run typecheck",
     "build": "bun run pre:build && tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -18,9 +19,9 @@
     "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts'",
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck && bun run format:check",
+    "ci:check": "bun .githooks/ci-check.ts",
     "test:watch": "vitest",
     "pre:push": "bash .githooks/verify",
-    "pre:build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && bun run typecheck",
     "pre:deploy": "bash .githooks/pre-deploy",
     "pre:docker": "bash .githooks/pre-docker",
     "db:migrate:up": "bun src/shared/database/migrate.ts up",
