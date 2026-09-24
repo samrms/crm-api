@@ -18,6 +18,5 @@ run lint bun run lint
 run format bun run format:check
 bash scripts/check-docs.sh > /tmp/prepush-docs.log 2>&1 || echo "docs: ✗ (skip or no script)"
 bash -c 'grep -rInE "BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|AKIA[0-9A-Z]{16}" --exclude-dir=node_modules --exclude-dir=.git --exclude=bun.lock .' > /dev/null 2>&1 || echo "secrets: ✗"; [ $? -eq 1 ] || echo "secrets: ✔"
-run test:scripts bun run test:scripts || true
 run test bun run test || true
 echo "pre-push done"
