@@ -1,6 +1,6 @@
 # Testing
 
-119 tests across 21 files, run with vitest.
+140 tests across 24 files, run with vitest.
 
 ```bash
 bun run test              # all suites
