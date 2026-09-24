@@ -254,7 +254,6 @@ export class LeadRoutes {
         const result = await this.convertLead({
           leadId: id,
           organizationId: orgId,
-          actorId: request.auth!.userId,
           companyName: body.companyName,
           dealTitle: body.dealTitle,
           dealValue: body.dealValue,

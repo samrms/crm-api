@@ -1,5 +1,4 @@
 import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
 
 const DEAD_TABLES = [
   'tasks',
@@ -28,25 +27,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   }
 }
 
-export async function down(db: Kysely<unknown>): Promise<void> {
-  // Only the shape needed to keep the rollback honest. This is a safety
-  // net for an accidental `db:reset`; the tables are unused either way.
-  await sql`
-    create table if not exists tasks (
-      id varchar(21) primary key,
-      organization_id varchar(21) not null references organizations(id) on delete cascade,
-      dealId varchar(21),
-      leadId varchar(21),
-      contactId varchar(21),
-      companyId varchar(21),
-      title varchar(255) not null,
-      description text,
-      status varchar(20) not null default 'PENDING',
-      dueDate text,
-      assignedToId varchar(21),
-      created_at text not null default 'CURRENT_TIMESTAMP',
-      updated_at text not null default 'CURRENT_TIMESTAMP',
-      deleted_at text
-    )
-  `.execute(db)
-}
+/**
+ * Intentionally empty. Recreating these tables by hand would drift from the
+ * originals (indexes, defaults, constraints) and misrepresent the schema. If
+ * they are ever needed again, that is a new, explicit migration — not a
+ * rollback of this one.
+ */
+export async function down(_db: Kysely<unknown>): Promise<void> {}

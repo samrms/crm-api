@@ -8,8 +8,6 @@ import { seedCompanies } from './seeds/companies.js'
 import { seedContacts } from './seeds/contacts.js'
 import { seedLeads } from './seeds/leads.js'
 import { seedDeals } from './seeds/deals.js'
-import { seedTasks } from './seeds/tasks.js'
-import { seedActivities } from './seeds/activities.js'
 
 export class DemoSeeder {
   async run(): Promise<void> {
@@ -19,8 +17,6 @@ export class DemoSeeder {
     for (const table of [
       'sessions',
       'memberships',
-      'activities',
-      'tasks',
       'deals',
       'leads',
       'contacts',
@@ -32,13 +28,11 @@ export class DemoSeeder {
     }
 
     const { orgId } = await seedOrganizations(db)
-    const { memberIds } = await seedUsers(db, orgId)
+    await seedUsers(db, orgId)
     const companyIds = await seedCompanies(db, orgId)
     const contactIds = await seedContacts(db, orgId, companyIds)
-    const leadIds = await seedLeads(db, orgId)
-    const dealIds = await seedDeals(db, orgId, companyIds, contactIds)
-    await seedTasks(db, orgId, dealIds, leadIds, memberIds)
-    await seedActivities(db, orgId, dealIds, contactIds)
+    await seedLeads(db, orgId)
+    await seedDeals(db, orgId, companyIds, contactIds)
 
     logger.info(
       { organizationId: orgId, email: OWNER_EMAIL },

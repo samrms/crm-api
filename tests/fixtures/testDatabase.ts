@@ -30,12 +30,8 @@ export function getTestDb(): Kysely<AppDatabase> {
 }
 
 const TABLES = [
-  'audit_events',
-  'outbox_events',
   'imports',
   'exports',
-  'activities',
-  'tasks',
   'deals',
   'leads',
   'contacts',

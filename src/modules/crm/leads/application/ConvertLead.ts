@@ -15,7 +15,6 @@ import type { LeadsTable } from '@/shared/database/types.js'
 export interface ConvertLeadInput {
   leadId: string
   organizationId: string
-  actorId: string
   companyName?: string
   dealTitle?: string
   dealValue?: number
@@ -131,25 +130,6 @@ export class ConvertLead {
         .set({ convertedDealId: deal.id, updated_at: new Date() })
         .where('id', '=', leadId)
         .where('organization_id', '=', organizationId)
-        .execute()
-
-      await trx
-        .insertInto('audit_events')
-        .values({
-          id: newId('aud'),
-          organization_id: organizationId,
-          actor_id: input.actorId,
-          action: 'LEAD_CONVERTED',
-          resource_type: 'lead',
-          resource_id: leadId,
-          request_id: null,
-          metadata: {
-            dealId: deal.id,
-            companyId: company.id,
-            contactId: contact.id,
-          },
-          created_at: new Date(),
-        })
         .execute()
 
       return {

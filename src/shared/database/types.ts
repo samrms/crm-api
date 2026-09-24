@@ -47,10 +47,6 @@ export interface Database {
   contacts: ContactsTable
   leads: LeadsTable
   deals: DealsTable
-  activities: ActivitiesTable
-  tasks: TasksTable
-  audit_events: AuditEventsTable
-  outbox_events: OutboxEventsTable
   imports: ImportsTable
   exports: ExportsTable
   kysely_migrations: KyselyMigrationsTable
@@ -120,58 +116,6 @@ export interface DealsTable {
   updated_at: Date
   deleted_at: Date | null
   version: number
-}
-
-export interface ActivitiesTable {
-  id: string
-  organization_id: string
-  dealId: string | null
-  leadId: string | null
-  contactId: string | null
-  companyId: string | null
-  type: 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK'
-  subject: string
-  body: string | null
-  occurredAt: Date
-  created_at: Date
-  updated_at: Date
-}
-
-export interface TasksTable {
-  id: string
-  organization_id: string
-  dealId: string | null
-  leadId: string | null
-  contactId: string | null
-  title: string
-  description: string | null
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-  dueDate: Date | null
-  assignedToId: string | null
-  created_at: Date
-  updated_at: Date
-  deleted_at: Date | null
-}
-
-export interface AuditEventsTable {
-  id: string
-  organization_id: string
-  actor_id: string
-  action: string
-  resource_type: string
-  resource_id: string | null
-  request_id: string | null
-  metadata: Record<string, unknown> | null
-  created_at: Date
-}
-
-export interface OutboxEventsTable {
-  id: string
-  organization_id: string
-  type: string
-  payload: Record<string, unknown>
-  processed_at: Date | null
-  created_at: Date
 }
 
 export interface ImportsTable {
