@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { buildTestApp } from '../fixtures/app.js'
-import { getTestDb, stopTestDatabase } from '../fixtures/testDatabase.js'
+import { stopTestDatabase } from '../fixtures/testDatabase.js'
 import {
   cleanupTestData,
   createTestCompany,
@@ -165,33 +165,31 @@ describe('authentication', () => {
     }
   })
 
-  it('rejects expired sessions', async () => {
-    const db = getTestDb()
-    const org = await createTestOrganization()
-    const user = await createTestUser()
-    await createTestMembership({ userId: user.id, organizationId: org.id })
-    const token = 'expired-token'
-    await db
-      .insertInto('sessions')
-      .values({
-        id: 'sess_expired',
-        token,
-        user_id: user.id,
-        organization_id: org.id,
-        expires_at: new Date(Date.now() - 86_400_000),
-        created_at: new Date(),
-      })
-      .execute()
+  it('rejects an expired token', async () => {
+    const { createHmac } = await import('node:crypto')
+    const { config } = await import('@/shared/config.js')
+    const encode = (value: unknown) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url')
+    const body = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({
+      sub: 'user_x',
+      org: 'org_x',
+      role: 'OWNER',
+      iat: 0,
+      exp: 1,
+    })}`
+    const signature = createHmac('sha256', config.sessionSecret)
+      .update(body)
+      .digest('base64url')
 
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/companies',
-      cookies: { session: token },
+      cookies: { session: `${body}.${signature}` },
     })
     expect(res.statusCode).toBe(401)
   })
 
-  it('rejects sessions revoked by logout', async () => {
+  it('clears the session cookie on logout', async () => {
     const { token } = await createTenant()
     const logout = await app.inject({
       method: 'POST',
@@ -200,12 +198,53 @@ describe('authentication', () => {
     })
     expect(logout.statusCode).toBe(204)
 
+    // Tokens are stateless: logout clears the client's cookie but cannot
+    // invalidate the token server-side. It stops being accepted only when it
+    // expires (JWT_TTL_MINUTES). See ADR 003.
+    const setCookie = String(logout.headers['set-cookie'] ?? '')
+    expect(setCookie).toContain('session=')
+    expect(setCookie).toMatch(/Max-Age=0/)
+  })
+
+  it('rejects a token signed with a different secret', async () => {
+    const { token } = await createTenant()
+    const [header, payload] = token.split('.')
+    const forged = `${header}.${payload}.forged-signature`
+
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/companies',
-      cookies: { session: token },
+      cookies: { session: forged },
     })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('rejects an expired token', async () => {
+    const { token } = await createTenant()
+    // Re-sign a correctly-formed token whose exp is in the past.
+    const { createHmac } = await import('node:crypto')
+    const { config } = await import('@/shared/config.js')
+    const expired = {
+      sub: 'user_x',
+      org: 'org_x',
+      role: 'OWNER',
+      iat: 0,
+      exp: 1,
+    }
+    const enc = (v: unknown) =>
+      Buffer.from(JSON.stringify(v)).toString('base64url')
+    const body = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc(expired)}`
+    const signature = createHmac('sha256', config.sessionSecret)
+      .update(body)
+      .digest('base64url')
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/companies',
+      cookies: { session: `${body}.${signature}` },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(token.split('.').length).toBe(3)
   })
 })
 
@@ -218,7 +257,7 @@ describe('authorization', () => {
       organizationId: org.id,
       role: 'MEMBER',
     })
-    const { token } = await createTestSession(user.id, org.id)
+    const { token } = await createTestSession(user.id, org.id, 'MEMBER')
 
     const res = await app.inject({
       method: 'POST',
@@ -238,7 +277,7 @@ describe('authorization', () => {
       organizationId: org.id,
       role: 'MEMBER',
     })
-    const { token } = await createTestSession(user.id, org.id)
+    const { token } = await createTestSession(user.id, org.id, 'MEMBER')
 
     const res = await app.inject({
       method: 'GET',

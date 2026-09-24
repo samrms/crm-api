@@ -27,7 +27,7 @@ const account = {
 }
 
 describe('e2e: authentication flow', () => {
-  it('registers, reads /me, logs out and rejects the dead session', async () => {
+  it('registers, reads /me, and returns a signed token with the session', async () => {
     const register = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/register',
@@ -51,19 +51,32 @@ describe('e2e: authentication flow', () => {
     expect(me.json().data.organization.name).toBe(account.organizationName)
     expect(me.json().data.organization.slug).toBe('auth-flow-org')
 
+    // The token is a JWT: header.payload.signature, and the payload carries
+    // identity, organization, and role.
+    expect(token.split('.')).toHaveLength(3)
+    const claims = JSON.parse(
+      Buffer.from(token.split('.')[1]!, 'base64url').toString(),
+    )
+    expect(claims.org).toBe(me.json().data.organization.id)
+    expect(claims.role).toBe('OWNER')
+    expect(claims.exp).toBeGreaterThan(claims.iat)
+
+    // The same token also authenticates as a bearer token.
+    const viaBearer = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(viaBearer.statusCode).toBe(200)
+
+    // Logout clears the cookie; tokens are stateless and expire on their own.
     const logout = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/logout',
       cookies: { session: token },
     })
     expect(logout.statusCode).toBe(204)
-
-    const after = await app.inject({
-      method: 'GET',
-      url: '/api/v1/auth/me',
-      cookies: { session: token },
-    })
-    expect(after.statusCode).toBe(401)
+    expect(String(logout.headers['set-cookie'])).toMatch(/Max-Age=0/)
   })
 
   it('logs in with valid credentials and rejects wrong ones', async () => {
@@ -104,7 +117,7 @@ describe('e2e: authentication flow', () => {
     expect(duplicate.json().error.code).toBe('CONFLICT')
   })
 
-  it('changes the password and invalidates other sessions', async () => {
+  it('changes the password, invalidating the old one', async () => {
     const register = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/register',
@@ -137,12 +150,14 @@ describe('e2e: authentication flow', () => {
     })
     expect(oldPassword.statusCode).toBe(401)
 
-    const revokedSession = await app.inject({
+    // Stateless tokens cannot be revoked server-side: the other session stays
+    // valid until it expires. The old password is rejected immediately.
+    const otherSession = await app.inject({
       method: 'GET',
       url: '/api/v1/auth/me',
       cookies: { session: secondToken },
     })
-    expect(revokedSession.statusCode).toBe(401)
+    expect(otherSession.statusCode).toBe(200)
 
     const newPassword = await app.inject({
       method: 'POST',

@@ -32,11 +32,14 @@ export class Config {
   readonly redisUrl = getEnv('REDIS_URL', 'redis://localhost:6379')
   readonly corsOrigin = getEnv('CORS_ORIGIN', 'http://localhost:5173')
 
+  // Signs JWTs and pagination cursors. Rotating it invalidates every token.
   readonly sessionSecret = getEnv(
     'SESSION_SECRET',
     'dev-session-secret-change-in-production',
   )
-  readonly sessionMaxAgeDays = getEnvInt('SESSION_MAX_AGE_DAYS', 30)
+  // Short by design: a stateless token cannot be revoked before it expires,
+  // so the TTL bounds how long a stolen token stays useful. See ADR 003.
+  readonly jwtTtlMinutes = getEnvInt('JWT_TTL_MINUTES', 15)
   readonly storageDir = getEnv('STORAGE_DIR', './storage')
 
   readonly pagination = {

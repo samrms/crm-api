@@ -1,9 +1,13 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ForbiddenError } from '@/shared/errors/AppError.js'
-import { database } from '@/shared/database/connection.js'
 import type { Role } from '@/shared/database/types.js'
 
 export class Authorizer {
+  /**
+   * Checks the role carried by the verified token, so authorization costs no
+   * database query. A role change therefore takes effect when the caller's
+   * token expires (JWT_TTL_MINUTES) rather than immediately.
+   */
   requireRole(...allowedRoles: Role[]) {
     return async (
       request: FastifyRequest,
@@ -12,20 +16,7 @@ export class Authorizer {
       if (!request.auth) {
         throw new ForbiddenError('Authentication required')
       }
-
-      const row = await database.db
-        .selectFrom('memberships')
-        .selectAll()
-        .where('user_id', '=', request.auth.userId)
-        .where('organization_id', '=', request.auth.organizationId)
-        .executeTakeFirst()
-
-      if (!row) {
-        throw new ForbiddenError('You are not a member of this organization')
-      }
-
-      const membership = row as { role: Role }
-      if (!allowedRoles.includes(membership.role)) {
+      if (!allowedRoles.includes(request.auth.role)) {
         throw new ForbiddenError(
           `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
         )

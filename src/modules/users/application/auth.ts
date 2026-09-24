@@ -2,12 +2,12 @@ import type { Kysely } from 'kysely'
 import { newId } from '@/shared/utils/id.js'
 import { toSlug } from '@/shared/utils/slug.js'
 import { hashPassword, verifyPassword } from '@/shared/auth/password.js'
-import { sessions } from '@/shared/auth/session.js'
+import { issueToken } from '@/shared/auth/jwt.js'
 import { PostgresUserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import { PostgresMembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
-import type { Database } from '@/shared/database/types.js'
+import type { Database, Role } from '@/shared/database/types.js'
 import {
   ConflictError,
   UnauthorizedError,
@@ -32,7 +32,8 @@ export interface OrganizationSummary {
 export interface AuthResult {
   user: { id: string; email: string; name: string }
   organization: OrganizationSummary
-  session: { token: string; expiresAt: Date }
+  token: string
+  expiresAt: Date
 }
 
 export class AuthService {
@@ -84,12 +85,17 @@ export class AuthService {
         role: 'OWNER',
       })
 
-      const session = await sessions.create(userId, orgId, trx)
+      const { token, expiresAt } = issueToken({
+        userId,
+        organizationId: orgId,
+        role: 'OWNER',
+      })
 
       return {
         user: { id: user.id, email: user.email, name: user.name },
         organization: { id: org.id, name: org.name, slug: org.slug },
-        session: { token: session.token, expiresAt: session.expiresAt },
+        token,
+        expiresAt,
       }
     })
   }
@@ -99,13 +105,19 @@ export class AuthService {
     if (!user) throw new UnauthorizedError('Invalid email or password')
     const valid = await verifyPassword(input.password, user.password_hash)
     if (!valid) throw new UnauthorizedError('Invalid email or password')
+
     const memberships = await this.membershipRepo.findByUserId(user.id)
     if (memberships.length === 0) {
       throw new NotFoundError('Organization membership')
     }
     const membership = memberships[0]!
-    const session = await sessions.create(user.id, membership.organization_id)
     const org = await this.findOrganization(membership.organization_id)
+    const { token, expiresAt } = issueToken({
+      userId: user.id,
+      organizationId: membership.organization_id,
+      role: membership.role,
+    })
+
     return {
       user: { id: user.id, email: user.email, name: user.name },
       organization: org ?? {
@@ -113,26 +125,27 @@ export class AuthService {
         name: 'Unknown',
         slug: 'unknown',
       },
-      session: { token: session.token, expiresAt: session.expiresAt },
+      token,
+      expiresAt,
     }
   }
 
-  async logout(token: string): Promise<void> {
-    await sessions.revoke(token)
-  }
+  /**
+   * Stateless tokens cannot be revoked server-side, so logout only clears the
+   * client's cookie. The token itself stops being accepted when it expires.
+   */
+  async logout(_token: string): Promise<void> {}
 
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
-    currentToken: string,
   ): Promise<void> {
     const user = await this.userRepo.findById(userId)
     if (!user) throw new UnauthorizedError('Invalid credentials')
     const valid = await verifyPassword(currentPassword, user.password_hash)
     if (!valid) throw new UnauthorizedError('Invalid credentials')
     await this.userRepo.updatePassword(user.id, await hashPassword(newPassword))
-    await sessions.revokeAllExceptSession(user.id, currentToken)
   }
 
   async getMe(
@@ -141,7 +154,7 @@ export class AuthService {
   ): Promise<{
     user: { id: string; email: string; name: string }
     organization: OrganizationSummary | null
-    role: string | null
+    role: Role | null
   }> {
     const user = await this.userRepo.findById(userId)
     if (!user) throw new NotFoundError('User')

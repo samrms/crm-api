@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import { getTestDb, truncateAllTables } from './testDatabase.js'
 import { hashPassword } from '../../src/shared/auth/password.js'
+import { issueToken } from '../../src/shared/auth/jwt.js'
 import type { Role } from '../../src/shared/database/types.js'
 
 let currentOrgId: string | null = null
@@ -79,26 +80,17 @@ export async function createTestMembership(
   return { userId, organizationId, role }
 }
 
-export async function createTestSession(
+export function createTestSession(
   userId: string,
   organizationId: string,
+  role: Role = 'OWNER',
 ) {
-  const db = getTestDb()
-  const sessionId = `sess_${nanoid(12)}`
-  const token = nanoid(32)
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  await db
-    .insertInto('sessions')
-    .values({
-      id: sessionId,
-      token,
-      user_id: userId,
-      organization_id: organizationId,
-      expires_at: expiresAt,
-      created_at: new Date(),
-    })
-    .execute()
-  return { sessionId, token, expiresAt }
+  const { token, expiresAt } = issueToken({
+    userId,
+    organizationId,
+    role,
+  })
+  return { token, expiresAt }
 }
 
 export async function createTestCompany(

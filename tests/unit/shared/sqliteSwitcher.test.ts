@@ -57,7 +57,7 @@ describe('DATABASE_URL switcher', () => {
         name: string
       }>`select name from kysely_migrations
         order by name desc limit 1`.execute(db)
-      expect(latest.rows[0]?.name).toBe('016_drop_dead_tables')
+      expect(latest.rows[0]?.name).toBe('017_drop_sessions')
 
       const now = new Date()
       await db

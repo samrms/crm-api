@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { AuthService } from '@/modules/users/application/auth.js'
-import { sessions } from '@/shared/auth/session.js'
+import { sessionCookie } from '@/shared/auth/session.js'
 import { authGuard } from '@/shared/auth/authenticate.js'
 import { UnauthorizedError } from '@/shared/errors/AppError.js'
 
@@ -38,11 +38,13 @@ export class AuthRoutes {
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = registerSchema.parse(request.body)
         const result = await this.service.register(body)
-        sessions.setCookie(reply, result.session.token)
+        sessionCookie.set(reply, result.token)
         return reply.status(201).send({
           data: {
             user: result.user,
             organization: result.organization,
+            token: result.token,
+            expiresAt: result.expiresAt.toISOString(),
           },
           _links: {
             me: { href: '/api/v1/auth/me' },
@@ -64,11 +66,13 @@ export class AuthRoutes {
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = loginSchema.parse(request.body)
         const result = await this.service.login(body)
-        sessions.setCookie(reply, result.session.token)
+        sessionCookie.set(reply, result.token)
         return reply.status(200).send({
           data: {
             user: result.user,
             organization: result.organization,
+            token: result.token,
+            expiresAt: result.expiresAt.toISOString(),
           },
           _links: {
             me: { href: '/api/v1/auth/me' },
@@ -96,7 +100,6 @@ export class AuthRoutes {
           request.auth!.userId,
           body.currentPassword,
           body.password,
-          token,
         )
         return reply.status(200).send({
           data: { message: 'Password updated' },
@@ -118,7 +121,7 @@ export class AuthRoutes {
         if (token) {
           await this.service.logout(token)
         }
-        sessions.clearCookie(reply)
+        sessionCookie.clear(reply)
         return reply.status(204).send()
       },
     )

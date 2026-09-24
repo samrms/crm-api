@@ -28,21 +28,10 @@ export interface MembershipsTable {
   updated_at: Date
 }
 
-export interface SessionsTable {
-  id: string
-  token: string
-  user_id: string
-  organization_id: string
-  expires_at: Date
-  revoked_at: Date | null
-  created_at: Date
-}
-
 export interface Database {
   organizations: OrganizationsTable
   users: UsersTable
   memberships: MembershipsTable
-  sessions: SessionsTable
   companies: CompaniesTable
   contacts: ContactsTable
   leads: LeadsTable

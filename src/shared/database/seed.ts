@@ -15,7 +15,6 @@ export class DemoSeeder {
     const db = database.db
 
     for (const table of [
-      'sessions',
       'memberships',
       'deals',
       'leads',

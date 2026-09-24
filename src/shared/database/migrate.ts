@@ -24,6 +24,7 @@ import * as m013 from './migrations/013_create_imports.js'
 import * as m014 from './migrations/014_create_exports.js'
 import * as m015 from './migrations/015_create_password_reset_tokens.js'
 import * as m016 from './migrations/016_drop_dead_tables.js'
+import * as m017 from './migrations/017_drop_sessions.js'
 
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
@@ -44,6 +45,7 @@ class StaticMigrationProvider implements MigrationProvider {
       '014_create_exports': m014,
       '015_create_password_reset_tokens': m015,
       '016_drop_dead_tables': m016,
+      '017_drop_sessions': m017,
     }
   }
 }

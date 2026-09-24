@@ -1,11 +1,11 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { sessions } from './session.js'
+import { verifyToken } from './jwt.js'
 import { UnauthorizedError } from '@/shared/errors/AppError.js'
 
 export interface AuthContext {
   userId: string
   organizationId: string
-  sessionId: string
+  role: 'OWNER' | 'ADMIN' | 'MEMBER'
 }
 
 declare module 'fastify' {
@@ -15,6 +15,10 @@ declare module 'fastify' {
 }
 
 export class AuthGuard {
+  /**
+   * Resolves the caller from a signed token. No database query: the claims
+   * carry identity, organization, and role.
+   */
   readonly authenticate = async (
     request: FastifyRequest,
     _reply: FastifyReply,
@@ -30,15 +34,11 @@ export class AuthGuard {
       throw new UnauthorizedError('No session token provided')
     }
 
-    const session = await sessions.find(token)
-    if (!session) {
-      throw new UnauthorizedError('Invalid or expired session')
-    }
-
+    const claims = verifyToken(token)
     request.auth = {
-      userId: session.user_id,
-      organizationId: session.organization_id,
-      sessionId: session.id,
+      userId: claims.sub,
+      organizationId: claims.org,
+      role: claims.role,
     }
   }
 }

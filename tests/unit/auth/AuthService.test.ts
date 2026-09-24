@@ -13,7 +13,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '../../../src/shared/auth/password.ts'
-import { sessions } from '../../../src/shared/auth/session.ts'
+import { issueToken } from '../../../src/shared/auth/jwt.ts'
 import { AuthService } from '../../../src/modules/users/application/auth.ts'
 
 vi.mock('../../../src/shared/auth/password.ts', () => ({
@@ -21,21 +21,11 @@ vi.mock('../../../src/shared/auth/password.ts', () => ({
   verifyPassword: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('../../../src/shared/auth/session.ts', () => ({
-  sessions: {
-    create: vi.fn().mockResolvedValue({
-      sessionId: 'sess_1',
-      token: 'token-1',
-      userId: 'user_1',
-      organizationId: 'org_1',
-      expiresAt: new Date('2030-01-01'),
-    }),
-    revoke: vi.fn(),
-    revokeAllExceptSession: vi.fn(),
-    find: vi.fn(),
-    setCookie: vi.fn(),
-    clearCookie: vi.fn(),
-  },
+vi.mock('../../../src/shared/auth/jwt.ts', () => ({
+  issueToken: vi.fn().mockReturnValue({
+    token: 'token-1',
+    expiresAt: new Date('2030-01-01'),
+  }),
 }))
 
 const user = (overrides: Partial<UserRow> = {}): UserRow => ({
@@ -121,11 +111,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(hashPassword).mockResolvedValue('hashed-password')
   vi.mocked(verifyPassword).mockResolvedValue(true)
-  vi.mocked(sessions.create).mockResolvedValue({
-    sessionId: 'sess_1',
+  vi.mocked(issueToken).mockReturnValue({
     token: 'token-1',
-    userId: 'user_1',
-    organizationId: 'org_1',
     expiresAt: new Date('2030-01-01'),
   })
 })
@@ -138,7 +125,7 @@ describe('AuthService', () => {
     organizationName: 'Acme Corp',
   }
 
-  it('register persists user, organization, membership and session atomically', async () => {
+  it('register persists user, organization and membership atomically and issues a token', async () => {
     const { db, inserted } = fakeDb(null)
     const service = new AuthService(db, userRepo(), membershipRepo())
 
@@ -153,11 +140,12 @@ describe('AuthService', () => {
     })
     expect(inserted.users).toHaveLength(1)
     expect(inserted.memberships![0]).toMatchObject({ role: 'OWNER' })
-    expect(sessions.create).toHaveBeenCalledWith(
-      inserted.users![0]!.id,
-      inserted.organizations![0]!.id,
-      expect.anything(),
-    )
+    expect(issueToken).toHaveBeenCalledWith({
+      userId: inserted.users![0]!.id,
+      organizationId: inserted.organizations![0]!.id,
+      role: 'OWNER',
+    })
+    expect(result.token).toBe('token-1')
   })
 
   it('register rejects duplicate emails with 409', async () => {
@@ -249,41 +237,53 @@ describe('AuthService', () => {
     })
   })
 
-  it('changePassword verifies the current password and revokes other sessions', async () => {
+  it('changePassword verifies the current password', async () => {
     const { db } = fakeDb(null)
     const repositories = userRepo()
     const service = new AuthService(db, repositories, membershipRepo())
 
-    await service.changePassword(
-      'user_1',
-      'password123',
-      'new-password',
-      'current-token',
-    )
+    await service.changePassword('user_1', 'password123', 'new-password')
     expect(hashPassword).toHaveBeenCalledWith('new-password')
     expect(repositories.updatePassword).toHaveBeenCalledWith(
       'user_1',
       'hashed-password',
     )
-    expect(sessions.revokeAllExceptSession).toHaveBeenCalledWith(
-      'user_1',
-      'current-token',
-    )
   })
 
   it('changePassword rejects an incorrect current password', async () => {
     const { db } = fakeDb(null)
-    const service = new AuthService(db, userRepo(), membershipRepo())
+    const repositories = userRepo()
+    const service = new AuthService(db, repositories, membershipRepo())
     vi.mocked(verifyPassword).mockResolvedValue(false)
     await expect(
-      service.changePassword('user_1', 'wrong', 'new-password', 'token'),
+      service.changePassword('user_1', 'wrong', 'new-password'),
     ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
-    expect(sessions.revokeAllExceptSession).not.toHaveBeenCalled()
+    expect(repositories.updatePassword).not.toHaveBeenCalled()
   })
 
-  it('logout revokes the session token', async () => {
+  it('login issues a token carrying the membership role', async () => {
+    const { db } = fakeDb({ id: 'org_1', name: 'Acme', slug: 'acme' })
+    const service = new AuthService(
+      db,
+      userRepo({ findByEmail: vi.fn().mockResolvedValue(user()) }),
+      membershipRepo({
+        findByUserId: vi
+          .fn()
+          .mockResolvedValue([membership({ role: 'ADMIN' })]),
+      }),
+    )
+    await service.login({ email: 'a@b.test', password: 'password123' })
+    expect(issueToken).toHaveBeenCalledWith({
+      userId: 'user_1',
+      organizationId: 'org_1',
+      role: 'ADMIN',
+    })
+  })
+
+  it('logout does not call any revocation API (stateless token)', async () => {
     const { db } = fakeDb(null)
-    await new AuthService(db, userRepo(), membershipRepo()).logout('token-1')
-    expect(sessions.revoke).toHaveBeenCalledWith('token-1')
+    await expect(
+      new AuthService(db, userRepo(), membershipRepo()).logout('token-1'),
+    ).resolves.toBeUndefined()
   })
 })

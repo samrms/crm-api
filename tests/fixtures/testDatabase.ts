@@ -37,7 +37,6 @@ const TABLES = [
   'contacts',
   'companies',
   'memberships',
-  'sessions',
   'users',
   'organizations',
 ] as const
