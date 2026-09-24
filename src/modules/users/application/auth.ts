@@ -1,11 +1,7 @@
 import { newId } from '@/shared/utils/id.js'
 import { toSlug } from '@/shared/utils/slug.js'
 import { hashPassword, verifyPassword } from '@/shared/auth/password.js'
-import {
-  createSession,
-  revokeSession,
-  revokeAllExceptSession,
-} from '@/shared/auth/session.js'
+import { sessions } from '@/shared/auth/session.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
 import {
@@ -61,7 +57,7 @@ export class AuthService {
       organizationId: orgId,
       role: 'OWNER',
     })
-    const session = await createSession(userId, orgId)
+    const session = await sessions.create(userId, orgId)
     return {
       user: { id: user.id, email: user.email, name: user.name },
       organization: { id: org.id, name: org.name, slug: org.slug },
@@ -78,7 +74,7 @@ export class AuthService {
     if (memberships.length === 0)
       throw new NotFoundError('Organization membership')
     const membership = memberships[0]!
-    const session = await createSession(user.id, membership.organization_id)
+    const session = await sessions.create(user.id, membership.organization_id)
     const org = {
       id: membership.organization_id,
       name: 'Unknown',
@@ -94,7 +90,7 @@ export class AuthService {
   }
 
   async logout(token: string): Promise<void> {
-    await revokeSession(token)
+    await sessions.revoke(token)
   }
 
   async changePassword(
@@ -108,7 +104,7 @@ export class AuthService {
     const valid = await verifyPassword(currentPassword, user.password_hash)
     if (!valid) throw new UnauthorizedError('Invalid credentials')
     await this.userRepo.updatePassword(user.id, await hashPassword(newPassword))
-    await revokeAllExceptSession(user.id, currentToken)
+    await sessions.revokeAllExceptSession(user.id, currentToken)
   }
 
   async getMe(

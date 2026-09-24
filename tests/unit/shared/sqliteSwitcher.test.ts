@@ -10,9 +10,11 @@ const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL
 async function importFresh(databaseUrl: string) {
   vi.resetModules()
   process.env.DATABASE_URL = databaseUrl
-  const connection = await import('../../../src/shared/database/connection.ts')
-  const { migrateUp } = await import('../../../src/shared/database/migrate.ts')
-  return { ...connection, migrateUp }
+  const { database } =
+    await import('../../../src/shared/database/connection.ts')
+  const { DatabaseMigrator } =
+    await import('../../../src/shared/database/migrate.ts')
+  return { database, DatabaseMigrator }
 }
 
 afterEach(() => {
@@ -41,13 +43,13 @@ describe('DATABASE_URL switcher', () => {
   })
 
   it('builds an in-memory sqlite database, runs migrations and round-trips dates', async () => {
-    const { getDb, closeDatabase, migrateUp } = await importFresh('sqlite://')
+    const { database, DatabaseMigrator } = await importFresh('sqlite://')
     try {
-      const db = getDb()
+      const db = database.db
       const probe = await sql<{ x: number }>`select 1 as x`.execute(db)
       expect(probe.rows).toHaveLength(1)
 
-      await migrateUp()
+      await new DatabaseMigrator(db).up()
       const [{ count }] = (
         await sql<{ count: number }>`select count(*) as count
         from kysely_migrations`.execute(db)
@@ -73,27 +75,27 @@ describe('DATABASE_URL switcher', () => {
       expect(row.name).toBe('Switcher Org')
       expect(row.created_at).toBeInstanceOf(Date)
     } finally {
-      await closeDatabase()
+      await database.close()
     }
   })
 
   it('keeps postgres urls on a pg pool without connecting', async () => {
-    const { getPool, closeDatabase } = await importFresh(
+    const { database } = await importFresh(
       'postgres://postgres@localhost:5432/crm',
     )
     try {
-      expect(() => getPool()).not.toThrow()
+      expect(() => database.pool).not.toThrow()
     } finally {
-      await closeDatabase()
+      await database.close()
     }
   })
 
   it('refuses getPool() in sqlite mode', async () => {
-    const { getPool, closeDatabase } = await importFresh('sqlite://')
+    const { database } = await importFresh('sqlite://')
     try {
-      expect(() => getPool()).toThrow(/SQLite/)
+      expect(() => database.pool).toThrow(/SQLite/)
     } finally {
-      await closeDatabase()
+      await database.close()
     }
   })
 })

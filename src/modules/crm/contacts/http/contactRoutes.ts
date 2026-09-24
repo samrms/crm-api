@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import {
   encodeCursor,
   verifyCursor,
@@ -35,7 +35,7 @@ export class ContactRoutes {
     app.get(
       '/api/v1/contacts',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Contacts'], summary: 'List contacts' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -88,7 +88,7 @@ export class ContactRoutes {
     app.get(
       '/api/v1/contacts/:id',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Contacts'], summary: 'Get contact' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -111,7 +111,10 @@ export class ContactRoutes {
     app.post(
       '/api/v1/contacts',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Contacts'],
           summary: 'Create contact',
@@ -141,7 +144,10 @@ export class ContactRoutes {
     app.patch(
       '/api/v1/contacts/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Contacts'],
           summary: 'Update contact',
@@ -173,7 +179,10 @@ export class ContactRoutes {
     app.delete(
       '/api/v1/contacts/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Contacts'], summary: 'Delete contact' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {

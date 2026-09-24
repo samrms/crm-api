@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import {
   encodeCursor,
   verifyCursor,
@@ -56,7 +56,7 @@ export class DealRoutes {
       '/api/v1/deals',
 
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Deals'], summary: 'List deals' },
       },
 
@@ -112,7 +112,7 @@ export class DealRoutes {
       '/api/v1/deals/:id',
 
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Deals'], summary: 'Get deal' },
       },
 
@@ -131,7 +131,10 @@ export class DealRoutes {
     app.post(
       '/api/v1/deals',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Deals'],
           summary: 'Create deal',
@@ -156,7 +159,10 @@ export class DealRoutes {
     app.patch(
       '/api/v1/deals/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Deals'],
           summary: 'Update deal',
@@ -183,7 +189,10 @@ export class DealRoutes {
     app.delete(
       '/api/v1/deals/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Deals'], summary: 'Delete deal' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -196,7 +205,10 @@ export class DealRoutes {
     app.post(
       '/api/v1/deals/:id/advance',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Deals'],
           summary: 'Advance deal to a later stage',
@@ -220,7 +232,10 @@ export class DealRoutes {
     app.post(
       '/api/v1/deals/:id/win',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Deals'], summary: 'Mark deal as won' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -235,7 +250,10 @@ export class DealRoutes {
     app.post(
       '/api/v1/deals/:id/lose',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Deals'], summary: 'Mark deal as lost' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {

@@ -3,8 +3,8 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import { ConflictError, NotFoundError } from '@/shared/errors/AppError.js'
 import { config } from '@/shared/config.js'
 import type { ExportService } from '@/modules/bulk/exports/application/ExportService.js'
@@ -23,7 +23,10 @@ export class ExportRoutes {
     app.post(
       '/api/v1/exports',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Exports'],
           summary: 'Start an export',
@@ -53,7 +56,7 @@ export class ExportRoutes {
     app.get(
       '/api/v1/exports/:id',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Exports'], summary: 'Get export status' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -77,7 +80,7 @@ export class ExportRoutes {
     app.get(
       '/api/v1/exports/:id/download',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: {
           tags: ['Exports'],
           summary: 'Download a completed export as CSV',

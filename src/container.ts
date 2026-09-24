@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { getDb } from './shared/database/connection.js'
+import { database } from './shared/database/connection.js'
 import { config } from './shared/config.js'
 import { PostgresCompanyRepository } from './modules/crm/companies/infrastructure/PostgresCompanyRepository.js'
 import { PostgresContactRepository } from './modules/crm/contacts/infrastructure/PostgresContactRepository.js'
@@ -29,41 +29,47 @@ export interface ContainerOptions {
   storageDir?: string
 }
 
-export interface AppContainer {
-  registerRoutes(app: FastifyInstance): Promise<void>
-}
+export class Container {
+  private readonly storageDir: string
+  private readonly authService: AuthService
+  private readonly companyService: CompanyService
+  private readonly contactService: ContactService
+  private readonly dealService: DealService
+  private readonly exportService: ExportService
+  private readonly importService: ImportService
+  private readonly leadService: LeadService
+  private readonly convertLead: ReturnType<ConvertLead['toFn']>
 
-export function buildContainer(options: ContainerOptions = {}): AppContainer {
-  const db = getDb()
-  const storageDir = options.storageDir ?? config.storageDir
+  constructor(options: ContainerOptions = {}) {
+    const db = database.db
+    this.storageDir = options.storageDir ?? config.storageDir
 
-  const companyRepo = new PostgresCompanyRepository(db)
-  const contactRepo = new PostgresContactRepository(db)
-  const dealRepo = new PostgresDealRepository(db)
-  const exportRepo = new PostgresExportRepository(db)
-  const importRepo = new PostgresImportRepository(db)
-  const leadRepo = new PostgresLeadRepository(db)
-  const userRepo = new PostgresUserRepository(db)
-  const membershipRepo = new PostgresMembershipRepository(db)
+    const companyRepo = new PostgresCompanyRepository(db)
+    const contactRepo = new PostgresContactRepository(db)
+    const dealRepo = new PostgresDealRepository(db)
+    const exportRepo = new PostgresExportRepository(db)
+    const importRepo = new PostgresImportRepository(db)
+    const leadRepo = new PostgresLeadRepository(db)
+    const userRepo = new PostgresUserRepository(db)
+    const membershipRepo = new PostgresMembershipRepository(db)
 
-  const companyService = new CompanyService(companyRepo)
-  const contactService = new ContactService(contactRepo)
-  const dealService = new DealService(dealRepo)
-  const exportService = new ExportService(db, exportRepo)
-  const importService = new ImportService(db, importRepo)
-  const leadService = new LeadService(leadRepo)
-  const authService = new AuthService(userRepo, membershipRepo)
-  const convertLead = new ConvertLead(db).toFn()
+    this.companyService = new CompanyService(companyRepo)
+    this.contactService = new ContactService(contactRepo)
+    this.dealService = new DealService(dealRepo)
+    this.exportService = new ExportService(db, exportRepo)
+    this.importService = new ImportService(db, importRepo)
+    this.leadService = new LeadService(leadRepo)
+    this.authService = new AuthService(userRepo, membershipRepo)
+    this.convertLead = new ConvertLead(db).toFn()
+  }
 
-  return {
-    async registerRoutes(app: FastifyInstance): Promise<void> {
-      await new AuthRoutes(authService).register(app)
-      await new CompanyRoutes(companyService).register(app)
-      await new ContactRoutes(contactService).register(app)
-      await new DealRoutes(dealService).register(app)
-      await new ExportRoutes(exportService, storageDir).register(app)
-      await new ImportRoutes(importService, storageDir).register(app)
-      await new LeadRoutes(leadService, convertLead).register(app)
-    },
+  async registerRoutes(app: FastifyInstance): Promise<void> {
+    await new AuthRoutes(this.authService).register(app)
+    await new CompanyRoutes(this.companyService).register(app)
+    await new ContactRoutes(this.contactService).register(app)
+    await new DealRoutes(this.dealService).register(app)
+    await new ExportRoutes(this.exportService, this.storageDir).register(app)
+    await new ImportRoutes(this.importService, this.storageDir).register(app)
+    await new LeadRoutes(this.leadService, this.convertLead).register(app)
   }
 }

@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import {
   encodeCursor,
   verifyCursor,
@@ -62,7 +62,7 @@ export class LeadRoutes {
       '/api/v1/leads',
 
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Leads'], summary: 'List leads' },
       },
 
@@ -118,7 +118,7 @@ export class LeadRoutes {
       '/api/v1/leads/:id',
 
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Leads'], summary: 'Get lead' },
       },
 
@@ -137,7 +137,10 @@ export class LeadRoutes {
     app.post(
       '/api/v1/leads',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Leads'],
           summary: 'Create lead',
@@ -162,7 +165,10 @@ export class LeadRoutes {
     app.patch(
       '/api/v1/leads/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Leads'],
           summary: 'Update lead',
@@ -189,7 +195,10 @@ export class LeadRoutes {
     app.delete(
       '/api/v1/leads/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Leads'], summary: 'Delete lead' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -202,7 +211,10 @@ export class LeadRoutes {
     app.post(
       '/api/v1/leads/:id/qualify',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Leads'], summary: 'Qualify lead' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -224,7 +236,10 @@ export class LeadRoutes {
     app.post(
       '/api/v1/leads/:id/convert',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Leads'],
           summary: 'Convert lead into company, contact and deal',

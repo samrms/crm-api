@@ -1,4 +1,6 @@
-import type swagger from '@fastify/swagger'
+import swagger from '@fastify/swagger'
+import swaggerUi from '@fastify/swagger-ui'
+import type { FastifyInstance } from 'fastify'
 
 type SwaggerOptions = Extract<
   Parameters<typeof swagger>[1],
@@ -541,3 +543,16 @@ class OpenApiDocumentFactory {
 }
 
 export const openapi: SwaggerOptions = new OpenApiDocumentFactory().build()
+
+export class OpenApiPlugin {
+  async register(app: FastifyInstance): Promise<void> {
+    await app.register(swagger, openapi)
+    await app.register(swaggerUi, { routePrefix: '/docs' })
+    app.addHook('onSend', async (request, reply) => {
+      if (request.url.startsWith('/docs')) {
+        reply.removeHeader('content-security-policy')
+        reply.removeHeader('cross-origin-embedder-policy')
+      }
+    })
+  }
+}

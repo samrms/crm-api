@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import type { ImportService } from '@/modules/bulk/imports/application/ImportService.js'
 import { config } from '@/shared/config.js'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -31,7 +31,10 @@ export class ImportRoutes {
     app.post(
       '/api/v1/imports',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Imports'],
           summary: 'Start an import',
@@ -77,7 +80,7 @@ export class ImportRoutes {
     app.get(
       '/api/v1/imports/:id',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Imports'], summary: 'Get import status' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {

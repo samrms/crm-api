@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { authenticate } from '@/shared/auth/authenticate.js'
-import { requireRole } from '@/shared/auth/authorize.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
+import { authorizer } from '@/shared/auth/authorize.js'
 import {
   verifyCursor,
   encodeCursor,
@@ -47,7 +47,7 @@ export class CompanyRoutes {
     app.get(
       '/api/v1/companies',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Companies'], summary: 'List companies' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -96,7 +96,7 @@ export class CompanyRoutes {
     app.get(
       '/api/v1/companies/:id',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Companies'], summary: 'Get company' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -116,7 +116,10 @@ export class CompanyRoutes {
     app.post(
       '/api/v1/companies',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Companies'],
           summary: 'Create company',
@@ -140,7 +143,10 @@ export class CompanyRoutes {
     app.patch(
       '/api/v1/companies/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: {
           tags: ['Companies'],
           summary: 'Update company',
@@ -167,7 +173,10 @@ export class CompanyRoutes {
     app.delete(
       '/api/v1/companies/:id',
       {
-        preHandler: [authenticate, requireRole('OWNER', 'ADMIN')],
+        preHandler: [
+          authGuard.authenticate,
+          authorizer.requireRole('OWNER', 'ADMIN'),
+        ],
         schema: { tags: ['Companies'], summary: 'Delete company' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {

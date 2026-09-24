@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { AuthService } from '@/modules/users/application/auth.js'
-import { setSessionCookie, clearSessionCookie } from '@/shared/auth/session.js'
-import { authenticate } from '@/shared/auth/authenticate.js'
+import { sessions } from '@/shared/auth/session.js'
+import { authGuard } from '@/shared/auth/authenticate.js'
 import { UnauthorizedError } from '@/shared/errors/AppError.js'
 
 const registerSchema = z.object({
@@ -38,7 +38,7 @@ export class AuthRoutes {
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = registerSchema.parse(request.body)
         const result = await this.service.register(body)
-        setSessionCookie(reply, result.session.token)
+        sessions.setCookie(reply, result.session.token)
         return reply.status(201).send({
           data: {
             user: result.user,
@@ -64,7 +64,7 @@ export class AuthRoutes {
       async (request: FastifyRequest, reply: FastifyReply) => {
         const body = loginSchema.parse(request.body)
         const result = await this.service.login(body)
-        setSessionCookie(reply, result.session.token)
+        sessions.setCookie(reply, result.session.token)
         return reply.status(200).send({
           data: {
             user: result.user,
@@ -81,7 +81,7 @@ export class AuthRoutes {
     app.post(
       '/api/v1/auth/password/change',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: {
           tags: ['Auth'],
           summary: 'Change password (revokes other sessions)',
@@ -110,7 +110,7 @@ export class AuthRoutes {
     app.post(
       '/api/v1/auth/logout',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Auth'], summary: 'Logout (revoke session)' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {
@@ -118,7 +118,7 @@ export class AuthRoutes {
         if (token) {
           await this.service.logout(token)
         }
-        clearSessionCookie(reply)
+        sessions.clearCookie(reply)
         return reply.status(204).send()
       },
     )
@@ -126,7 +126,7 @@ export class AuthRoutes {
     app.get(
       '/api/v1/auth/me',
       {
-        preHandler: [authenticate],
+        preHandler: [authGuard.authenticate],
         schema: { tags: ['Auth'], summary: 'Get current user' },
       },
       async (request: FastifyRequest, reply: FastifyReply) => {

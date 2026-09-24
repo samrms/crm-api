@@ -7,60 +7,64 @@ import type { Database as AppDatabase } from './types.js'
 
 const { Pool } = pg
 
-let pool: pg.Pool | null = null
-let db: Kysely<AppDatabase> | null = null
-let testDb: Kysely<AppDatabase> | null = null
+export class DatabaseManager {
+  private pgPool: pg.Pool | null = null
+  private kyselyDb: Kysely<AppDatabase> | null = null
+  private testDb: Kysely<AppDatabase> | null = null
 
-export function setTestDb(database: Kysely<AppDatabase> | null) {
-  testDb = database
-}
-
-export function getPool(): pg.Pool {
-  if (isSqliteUrl(config.databaseUrl)) {
-    throw new Error(
-      'getPool() is unavailable: DATABASE_URL is SQLite (in-memory mode).',
-    )
+  setTestDb(database: Kysely<AppDatabase> | null): void {
+    this.testDb = database
   }
-  if (!pool) {
-    pool = new Pool({
-      connectionString: config.databaseUrl,
-      max: 20,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
+
+  get db(): Kysely<AppDatabase> {
+    if (this.testDb) return this.testDb
+    if (this.kyselyDb) return this.kyselyDb
+    if (isSqliteUrl(config.databaseUrl)) {
+      this.kyselyDb = new Kysely<AppDatabase>({
+        dialect: new SqliteDialect({
+          database: openSqliteDatabase(config.databaseUrl),
+        }),
+      })
+      logger.info('DB: SQLite mode (in-memory)')
+      return this.kyselyDb
+    }
+    this.kyselyDb = new Kysely<AppDatabase>({
+      dialect: new PostgresDialect({ pool: this.pool }),
     })
-    pool.on('error', (err) => logger.error({ err }, 'DB pool error'))
+    logger.info('DB: PostgreSQL mode')
+    return this.kyselyDb
   }
-  return pool
+
+  get pool(): pg.Pool {
+    if (isSqliteUrl(config.databaseUrl)) {
+      throw new Error(
+        'Database pool is unavailable: DATABASE_URL is SQLite (in-memory mode).',
+      )
+    }
+    if (!this.pgPool) {
+      this.pgPool = new Pool({
+        connectionString: config.databaseUrl,
+        max: 20,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+      })
+      this.pgPool.on('error', (err) => logger.error({ err }, 'DB pool error'))
+    }
+    return this.pgPool
+  }
+
+  async close(): Promise<void> {
+    this.testDb = null
+    const closingDb = this.kyselyDb
+    const closingPool = this.pgPool
+    this.kyselyDb = null
+    this.pgPool = null
+    if (closingDb) {
+      await closingDb.destroy()
+    } else if (closingPool) {
+      await closingPool.end()
+    }
+  }
 }
 
-export function getDb(): Kysely<AppDatabase> {
-  if (testDb) return testDb
-  if (db) return db
-  if (isSqliteUrl(config.databaseUrl)) {
-    db = new Kysely<AppDatabase>({
-      dialect: new SqliteDialect({
-        database: openSqliteDatabase(config.databaseUrl),
-      }),
-    })
-    logger.info('DB: SQLite mode (in-memory)')
-    return db
-  }
-  db = new Kysely<AppDatabase>({
-    dialect: new PostgresDialect({ pool: getPool() }),
-  })
-  logger.info('DB: PostgreSQL mode')
-  return db
-}
-
-export async function closeDatabase(): Promise<void> {
-  if (testDb) testDb = null
-  const closingDb = db
-  const closingPool = pool
-  db = null
-  pool = null
-  if (closingDb) {
-    await closingDb.destroy()
-  } else if (closingPool) {
-    await closingPool.end()
-  }
-}
+export const database = new DatabaseManager()

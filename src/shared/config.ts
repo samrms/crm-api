@@ -18,34 +18,36 @@ function getEnvInt(key: string, fallback: number): number {
   return parsed
 }
 
-export const config = {
-  port: getEnvInt('PORT', 3000),
-  host: getEnv('HOST', '0.0.0.0'),
-  nodeEnv: getEnv('NODE_ENV', 'development'),
-  logLevel: getEnv('LOG_LEVEL', 'info'),
-  isProduction: getEnv('NODE_ENV', 'development') === 'production',
+export class Config {
+  readonly port = getEnvInt('PORT', 3000)
+  readonly host = getEnv('HOST', '0.0.0.0')
+  readonly nodeEnv = getEnv('NODE_ENV', 'development')
+  readonly logLevel = getEnv('LOG_LEVEL', 'info')
+  readonly isProduction = this.nodeEnv === 'production'
 
-  databaseUrl: getEnv(
+  readonly databaseUrl = getEnv(
     'DATABASE_URL',
     'postgres://postgres:postgres@localhost:5432/crm',
-  ),
-  redisUrl: getEnv('REDIS_URL', 'redis://localhost:6379'),
-  corsOrigin: getEnv('CORS_ORIGIN', 'http://localhost:5173'),
+  )
+  readonly redisUrl = getEnv('REDIS_URL', 'redis://localhost:6379')
+  readonly corsOrigin = getEnv('CORS_ORIGIN', 'http://localhost:5173')
 
-  sessionSecret: getEnv(
+  readonly sessionSecret = getEnv(
     'SESSION_SECRET',
     'dev-session-secret-change-in-production',
-  ),
-  sessionMaxAgeDays: getEnvInt('SESSION_MAX_AGE_DAYS', 30),
-  storageDir: getEnv('STORAGE_DIR', './storage'),
+  )
+  readonly sessionMaxAgeDays = getEnvInt('SESSION_MAX_AGE_DAYS', 30)
+  readonly storageDir = getEnv('STORAGE_DIR', './storage')
 
-  pagination: {
+  readonly pagination = {
     defaultLimit: 25,
     maxLimit: 100,
-  },
+  } as const
 
-  rateLimit: {
+  readonly rateLimit = {
     max: getEnvInt('RATE_LIMIT_MAX', 100),
     timeWindow: getEnv('RATE_LIMIT_TIME_WINDOW', '1 minute'),
-  },
-} as const
+  } as const
+}
+
+export const config = new Config()

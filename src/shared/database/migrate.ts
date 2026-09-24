@@ -2,9 +2,9 @@ import {
   type Kysely,
   type Migration,
   type MigrationProvider,
-  Migrator,
+  Migrator as KyselyMigrator,
 } from 'kysely'
-import { getDb } from './connection.js'
+import { database } from './connection.js'
 import type { Database } from './types.js'
 import { logger } from '@/shared/logging/logger.js'
 
@@ -22,6 +22,7 @@ import * as m011 from './migrations/011_create_audit_events.js'
 import * as m012 from './migrations/012_create_outbox_events.js'
 import * as m013 from './migrations/013_create_imports.js'
 import * as m014 from './migrations/014_create_exports.js'
+
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
@@ -43,54 +44,63 @@ class StaticMigrationProvider implements MigrationProvider {
   }
 }
 
-function createMigrator(db: Kysely<Database>): Migrator {
-  return new Migrator({
-    db,
-    provider: new StaticMigrationProvider(),
-    migrationTableName: 'kysely_migrations',
-  })
-}
+export class DatabaseMigrator {
+  private readonly db: Kysely<Database>
 
-export async function migrateUp(db?: Kysely<Database>): Promise<void> {
-  const database = db ?? getDb()
-  const migrator = createMigrator(database)
-  const { results, error } = await migrator.migrateToLatest()
-  if (error) {
-    logger.error({ error }, 'Migration failed')
-    throw error
+  constructor(db: Kysely<Database> = database.db) {
+    this.db = db
   }
-  for (const result of results ?? []) {
-    logger.info(
-      { migration: result.migrationName, status: result.status },
-      'Migration applied',
-    )
-  }
-}
 
-export async function migrateDown(db?: Kysely<Database>): Promise<void> {
-  const database = db ?? getDb()
-  const migrator = createMigrator(database)
-  const { results, error } = await migrator.migrateDown()
-  if (error) {
-    logger.error({ error }, 'Migration rollback failed')
-    throw error
+  async up(): Promise<void> {
+    const migrator = new KyselyMigrator({
+      db: this.db,
+      provider: new StaticMigrationProvider(),
+      migrationTableName: 'kysely_migrations',
+    })
+    const { results, error } = await migrator.migrateToLatest()
+    if (error) {
+      logger.error({ error }, 'Migration failed')
+      throw error
+    }
+    for (const result of results ?? []) {
+      logger.info(
+        { migration: result.migrationName, status: result.status },
+        'Migration applied',
+      )
+    }
   }
-  for (const result of results ?? []) {
-    logger.info(
-      { migration: result.migrationName, status: result.status },
-      'Migration rolled back',
-    )
+
+  async down(): Promise<void> {
+    const migrator = new KyselyMigrator({
+      db: this.db,
+      provider: new StaticMigrationProvider(),
+      migrationTableName: 'kysely_migrations',
+    })
+    const { results, error } = await migrator.migrateDown()
+    if (error) {
+      logger.error({ error }, 'Migration rollback failed')
+      throw error
+    }
+    for (const result of results ?? []) {
+      logger.info(
+        { migration: result.migrationName, status: result.status },
+        'Migration rolled back',
+      )
+    }
   }
 }
 
 if (process.argv[1] && process.argv[1].endsWith('migrate.ts')) {
+  const migrator = new DatabaseMigrator()
   const command = process.argv[2]
   if (command === 'rollback') {
-    migrateDown()
+    migrator
+      .down()
       .then(() => process.exit(0))
       .catch(() => process.exit(1))
   } else {
-    migrateUp()
+    migrator
+      .up()
       .then(() => process.exit(0))
       .catch(() => process.exit(1))
   }
