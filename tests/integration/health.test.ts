@@ -1,8 +1,24 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from 'vitest'
 import type { FastifyInstance } from 'fastify'
-import { buildTestApp } from '../fixtures/app.js'
-import { cleanupTestData } from '../fixtures/factories.js'
-import { stopTestDatabase } from '../fixtures/testDatabase.js'
+
+// Redis is an external service. The suite is hermetic, so the readiness
+// probe is exercised against a controllable stub rather than a live server.
+const { ping } = vi.hoisted(() => ({ ping: vi.fn() }))
+vi.mock('@/shared/cache/redis.js', () => ({
+  redisClient: { ping, close: vi.fn() },
+}))
+
+const { buildTestApp } = await import('../fixtures/app.js')
+const { cleanupTestData } = await import('../fixtures/factories.js')
+const { stopTestDatabase } = await import('../fixtures/testDatabase.js')
 
 let app: FastifyInstance
 
@@ -17,6 +33,8 @@ afterAll(async () => {
 })
 
 beforeEach(async () => {
+  ping.mockReset()
+  ping.mockResolvedValue('PONG')
   await cleanupTestData()
 })
 
@@ -38,12 +56,22 @@ describe('health endpoints', () => {
     expect(res.json().timestamp).toBeDefined()
   })
 
-  it('GET /ready reports database and redis checks', async () => {
+  it('GET /ready is 200 when every dependency responds', async () => {
     const res = await app.inject({ method: 'GET', url: '/ready' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.status).toBe('ready')
-    expect(body.checks.database).toBe('ok')
+    expect(body.checks).toEqual({ database: 'ok', redis: 'ok' })
+  })
+
+  it('GET /ready is 503 and names the failing dependency', async () => {
+    ping.mockRejectedValue(new Error('ECONNREFUSED'))
+
+    const res = await app.inject({ method: 'GET', url: '/ready' })
+    expect(res.statusCode).toBe(503)
+    const body = res.json()
+    expect(body.status).toBe('degraded')
+    expect(body.checks).toEqual({ database: 'ok', redis: 'unavailable' })
   })
 
   it('GET /metrics exposes process metrics', async () => {
