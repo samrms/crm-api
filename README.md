@@ -66,7 +66,7 @@ bun run docker:up         # postgres, redis, api
 | `bun run pre:push` / `pre:deploy` | the git gates, run by hand |
 | `bun run smoke` | boot `crm-api:local` and require `/health` |
 | `bun run seed` | load demo data |
-| `bun run docker:up` / `down` / `logs` | local Postgres + Redis + API |
+| `bun run docker:up` / `down` / `logs` | local Postgres + Redis + API (waits for health) |
 | `bun run build` | compile to `dist/` |
 
 ## Documentation

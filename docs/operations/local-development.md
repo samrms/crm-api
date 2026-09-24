@@ -70,6 +70,24 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run seed` | load deterministic demo data |
 | `bun run build` | clean compile to `dist/` |
 
+## Docker stack
+
+`bun run docker:up` builds the image (through `pre:docker`, which boots it and
+requires `/health`), then starts Postgres, Redis and the API with
+`--wait`: if any service never becomes healthy, the command fails instead of
+leaving a dead container behind.
+
+If the host already runs Postgres or Redis, move the published ports — only the
+host side changes, the app talks to the services by name inside the network:
+
+```sh
+POSTGRES_PORT=5433 REDIS_PORT=6380 bun run docker:up
+```
+
+The image is the same one `pre:docker` builds (`crm-api:local`), so nothing is
+built twice. `bun run docker:down` stops the stack; `bun run docker:logs` follows
+it.
+
 ## Gates
 
 Four scripts in `.githooks/`, all runnable with `bun run`:

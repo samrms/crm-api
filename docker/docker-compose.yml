@@ -28,6 +28,10 @@ services:
       retries: 5
 
   api:
+    # Same tag pre:docker builds, so `bun run docker:up` can reuse it instead of
+    # starting a second, unbounded build. The build block stays for anyone who
+    # prefers `docker compose build` directly.
+    image: crm-api:local
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -44,6 +48,18 @@ services:
       SESSION_SECRET: dev-session-secret-change-in-production
       CORS_ORIGIN: http://localhost:5173
       STORAGE_DIR: /tmp/storage
+    # Uses bun's fetch, so the image needs no extra tool (curl is not in the
+    # base image). With this, `docker compose up --wait` fails instead of
+    # reporting success for a container that died on startup.
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 12
     depends_on:
       postgres:
         condition: service_healthy
