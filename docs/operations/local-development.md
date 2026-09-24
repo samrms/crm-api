@@ -82,8 +82,11 @@ git config core.hooksPath .githooks
 `.githooks/pre-push` then runs every CI job before anything leaves the
 machine — lint, typecheck, format check, tests, the clean build, the Docker
 image, and a boot check of that image. It blocks the push if any step fails.
-The image steps need network and a running Docker daemon; without them the
-hook warns and skips those two steps, leaving CI as the authority.
+The image steps need network and a running Docker daemon. Without a daemon the
+hook warns and skips those two steps, leaving CI as the authority. The build
+itself is capped (default 900s, override with `DOCKER_BUILD_TIMEOUT`) because
+it downloads dependencies: a machine without registry access otherwise hangs
+instead of failing.
 
 There is no Husky dependency — the hooks are plain shell scripts. Run one by
 hand at any time:

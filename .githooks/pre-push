@@ -24,8 +24,17 @@ if ! docker info > /dev/null 2>&1; then
   exit 0
 fi
 
-echo "pre-push: docker build"
-bun run docker:build
+# The build downloads dependencies from the registry, so it can hang for a
+# long time on a machine without registry access. Cap it: a gate that times
+# out with an error is useful, one that never returns is not.
+if command -v timeout > /dev/null 2>&1; then
+  timeout "${DOCKER_BUILD_TIMEOUT:-900}" bun run docker:build || {
+    echo "pre-push: docker build failed or timed out - it needs registry access"
+    exit 1
+  }
+else
+  bun run docker:build
+fi
 
 echo "pre-push: smoke test the image"
 sh .githooks/smoke.sh crm-api:local
