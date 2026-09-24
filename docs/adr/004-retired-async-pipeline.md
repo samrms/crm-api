@@ -20,9 +20,12 @@ ran.
 Delete the pipeline rather than ship a half-wired one.
 
 Removed: `src/shared/queue/` (BullMQ queue and outbox relay),
-`processImport`, `processExport`, and the `publishOutboxEvent` writer. The
-`outbox_events` table and its migration stay so existing databases keep their
-history and migration numbering does not shift.
+`processImport`, `processExport`, the `publishOutboxEvent` writer, and the
+`bullmq` dependency itself.
+
+The `outbox_events` migration stays so migration numbering does not shift;
+migration 016 then drops the table itself, along with the other tables that lost
+their last writer (`tasks`, `activities`, `audit_events`).
 
 `ImportService.createImport` and `ExportService.createExport` now do what they
 say: create a `PENDING` job row and return it.

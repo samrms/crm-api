@@ -71,5 +71,5 @@ build.
 - No `shared/queue/`, no worker entrypoint, no `processImport`/`processExport`:
   see [ADR 004](../adr/004-retired-async-pipeline.md).
 - No ORM, no DI container framework, no global mutable service registry.
-- No `tasks` or `activities` API surface. The tables still exist and the demo
-  seeder populates them, but no endpoint exposes them.
+- No `tasks`, `activities`, `audit_events`, or `outbox_events`: those tables had
+  no API and no reader, and migration 016 drops them.

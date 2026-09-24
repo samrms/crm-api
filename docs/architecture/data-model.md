@@ -16,11 +16,7 @@ organizations ──< memberships >── users
       ├──< leads
       ├──< deals
       ├──< imports
-      ├──< exports
-      ├──< audit_events
-      ├──< outbox_events        (retired, retained; see ADR 004)
-      ├──< activities           (demo data only, no API)
-      └──< tasks                (demo data only, no API)
+      └──< exports
 ```
 
 ### Identity
@@ -71,8 +67,10 @@ Numbered, immutable, and listed explicitly in
 | --- | --- |
 | 001–004 | organizations, users, memberships, sessions |
 | 005–008 | companies, contacts, leads, deals |
-| 009–011 | activities, tasks, audit_events |
-| 012–015 | outbox_events, imports, exports, password_reset_tokens (no-op) |
+| 009–012 | activities, tasks, audit_events, outbox_events (all dropped in 016) |
+| 013–014 | imports, exports |
+| 015 | password_reset_tokens (no-op, feature retired) |
+| 016 | drops the tables from 009–012 and 015 that no longer have a writer or reader |
 
 Run `bun run db:migrate:up` to apply pending migrations and
 `bun run db:migrate:down` to roll back the last one. Never delete an applied migration —
