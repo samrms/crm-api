@@ -1,53 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import { LeadService } from '../../../src/modules/crm/leads/application/LeadService.ts'
-import type {
-  LeadRepository,
-  LeadRow,
-} from '../../../src/modules/crm/leads/infrastructure/PostgresLeadRepository.ts'
-
-const lead = (overrides: Partial<LeadRow> = {}): LeadRow => ({
-  id: 'ld_1',
-  organization_id: 'org_1',
-  companyId: null,
-  contactId: null,
-  email: 'lead@example.com',
-  firstName: 'Jane',
-  lastName: 'Smith',
-  company: null,
-  source: null,
-  status: 'NEW',
-  convertedDealId: null,
-  notes: null,
-  created_at: new Date(),
-  updated_at: new Date(),
-  deleted_at: null,
-  version: 1,
-  ...overrides,
-})
-
-function repo(overrides: Partial<LeadRepository> = {}) {
-  return {
-    findById: vi.fn().mockResolvedValue(lead()),
-    list: vi.fn().mockResolvedValue([lead()]),
-    create: vi.fn().mockImplementation((data) => lead(data as never)),
-    update: vi.fn().mockResolvedValue(lead({ firstName: 'Janet' })),
-    updateStatus: vi.fn().mockResolvedValue(lead({ status: 'CONTACTED' })),
-    softDelete: vi.fn().mockResolvedValue(true),
-    ...overrides,
-  } satisfies LeadRepository
-}
+import { leadRepo, leadRow } from '../../fixtures/repos.ts'
 
 describe('LeadService', () => {
   it('walks a new lead through contacted to qualified', async () => {
-    const repository = repo({
+    const repository = leadRepo({
       updateStatus: vi
         .fn()
-        .mockResolvedValueOnce(lead({ status: 'CONTACTED', version: 2 }))
-        .mockResolvedValueOnce(lead({ status: 'QUALIFIED', version: 3 })),
+        .mockResolvedValueOnce(leadRow({ status: 'CONTACTED', version: 2 }))
+        .mockResolvedValueOnce(leadRow({ status: 'QUALIFIED', version: 3 })),
       findById: vi
         .fn()
-        .mockResolvedValueOnce(lead({ status: 'NEW', version: 1 }))
-        .mockResolvedValueOnce(lead({ status: 'QUALIFIED', version: 3 })),
+        .mockResolvedValueOnce(leadRow({ status: 'NEW', version: 1 }))
+        .mockResolvedValueOnce(leadRow({ status: 'QUALIFIED', version: 3 })),
     })
     const qualified = await new LeadService(repository).qualify('ld_1', 'org_1')
     expect(qualified.status).toBe('QUALIFIED')
@@ -68,8 +33,8 @@ describe('LeadService', () => {
   })
 
   it('is a no-op for an already qualified lead', async () => {
-    const repository = repo({
-      findById: vi.fn().mockResolvedValue(lead({ status: 'QUALIFIED' })),
+    const repository = leadRepo({
+      findById: vi.fn().mockResolvedValue(leadRow({ status: 'QUALIFIED' })),
     })
     const result = await new LeadService(repository).qualify('ld_1', 'org_1')
     expect(result.status).toBe('QUALIFIED')
@@ -78,8 +43,8 @@ describe('LeadService', () => {
 
   it('rejects qualifying terminal leads', async () => {
     const service = new LeadService(
-      repo({
-        findById: vi.fn().mockResolvedValue(lead({ status: 'DISQUALIFIED' })),
+      leadRepo({
+        findById: vi.fn().mockResolvedValue(leadRow({ status: 'DISQUALIFIED' })),
       }),
     )
     await expect(service.qualify('ld_1', 'org_1')).rejects.toMatchObject({
@@ -89,8 +54,8 @@ describe('LeadService', () => {
 
   it('propagates optimistic lock failures', async () => {
     const service = new LeadService(
-      repo({
-        findById: vi.fn().mockResolvedValue(lead({ status: 'NEW' })),
+      leadRepo({
+        findById: vi.fn().mockResolvedValue(leadRow({ status: 'NEW' })),
         updateStatus: vi.fn().mockResolvedValue(undefined),
       }),
     )
@@ -102,7 +67,7 @@ describe('LeadService', () => {
 
   it('throws NotFoundError for unknown leads', async () => {
     const service = new LeadService(
-      repo({ findById: vi.fn().mockResolvedValue(undefined) }),
+      leadRepo({ findById: vi.fn().mockResolvedValue(undefined) }),
     )
     await expect(service.get('ld_x', 'org_1')).rejects.toMatchObject({
       code: 'NOT_FOUND',

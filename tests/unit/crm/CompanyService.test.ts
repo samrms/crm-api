@@ -1,40 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { CompanyService } from '../../../src/modules/crm/companies/application/CompanyService.ts'
-import type {
-  CompanyRepository,
-  CompanyRow,
-} from '../../../src/modules/crm/companies/infrastructure/PostgresCompanyRepository.ts'
-
-const company = (overrides: Partial<CompanyRow> = {}): CompanyRow => ({
-  id: 'co_1',
-  organization_id: 'org_1',
-  name: 'Acme',
-  domain: null,
-  industry: null,
-  size: null,
-  website: null,
-  notes: null,
-  created_at: new Date(),
-  updated_at: new Date(),
-  deleted_at: null,
-  ...overrides,
-})
-
-function repo(overrides: Partial<CompanyRepository> = {}) {
-  return {
-    findById: vi.fn().mockResolvedValue(company()),
-    findByName: vi.fn().mockResolvedValue(undefined),
-    list: vi.fn().mockResolvedValue([company()]),
-    create: vi.fn().mockImplementation((data) => company(data as never)),
-    update: vi.fn().mockResolvedValue(company({ name: 'Updated' })),
-    softDelete: vi.fn().mockResolvedValue(true),
-    ...overrides,
-  } satisfies CompanyRepository
-}
+import { companyRepo, companyRow } from '../../fixtures/repos.ts'
 
 describe('CompanyService', () => {
   it('generates a prefixed id on create', async () => {
-    const repository = repo()
+    const repository = companyRepo()
     const created = await new CompanyService(repository).create({
       organizationId: 'org_1',
       name: 'Acme',
@@ -47,7 +17,7 @@ describe('CompanyService', () => {
 
   it('throws NotFoundError when reading a missing company', async () => {
     const service = new CompanyService(
-      repo({ findById: vi.fn().mockResolvedValue(undefined) }),
+      companyRepo({ findById: vi.fn().mockResolvedValue(undefined) }),
     )
     await expect(service.get('co_missing', 'org_1')).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -57,7 +27,7 @@ describe('CompanyService', () => {
 
   it('throws NotFoundError when updating a missing company', async () => {
     const service = new CompanyService(
-      repo({ update: vi.fn().mockResolvedValue(undefined) }),
+      companyRepo({ update: vi.fn().mockResolvedValue(undefined) }),
     )
     await expect(
       service.update({
@@ -70,7 +40,7 @@ describe('CompanyService', () => {
 
   it('throws NotFoundError when removing a missing company', async () => {
     const service = new CompanyService(
-      repo({ softDelete: vi.fn().mockResolvedValue(false) }),
+      companyRepo({ softDelete: vi.fn().mockResolvedValue(false) }),
     )
     await expect(service.remove('co_missing', 'org_1')).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -78,7 +48,7 @@ describe('CompanyService', () => {
   })
 
   it('passes pagination options through to the repository', async () => {
-    const repository = repo()
+    const repository = companyRepo()
     await new CompanyService(repository).list('org_1', {
       limit: 10,
       name: 'Ac',
@@ -87,5 +57,13 @@ describe('CompanyService', () => {
       limit: 10,
       name: 'Ac',
     })
+  })
+
+  it('returns the stored row unchanged on get', async () => {
+    const row = companyRow({ name: 'Stored Name' })
+    const service = new CompanyService(
+      companyRepo({ findById: vi.fn().mockResolvedValue(row) }),
+    )
+    expect(await service.get('co_1', 'org_1')).toBe(row)
   })
 })

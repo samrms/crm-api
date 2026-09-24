@@ -1,44 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { DealService } from '../../../src/modules/crm/deals/application/DealService.ts'
-import type {
-  DealRepository,
-  DealRow,
-} from '../../../src/modules/crm/deals/infrastructure/PostgresDealRepository.ts'
-
-const deal = (overrides: Partial<DealRow> = {}): DealRow => ({
-  id: 'dl_1',
-  organization_id: 'org_1',
-  companyId: null,
-  contactId: null,
-  leadId: null,
-  title: 'Big Deal',
-  value: 1_000,
-  currency: 'USD',
-  stage: 'NEW',
-  expectedCloseDate: null,
-  notes: null,
-  created_at: new Date(),
-  updated_at: new Date(),
-  deleted_at: null,
-  version: 1,
-  ...overrides,
-})
-
-function repo(overrides: Partial<DealRepository> = {}) {
-  return {
-    findById: vi.fn().mockResolvedValue(deal()),
-    list: vi.fn().mockResolvedValue([deal()]),
-    create: vi.fn().mockImplementation((data) => deal(data as never)),
-    update: vi.fn().mockResolvedValue(deal({ title: 'Renamed' })),
-    updateStage: vi.fn().mockResolvedValue(deal({ stage: 'QUALIFIED' })),
-    softDelete: vi.fn().mockResolvedValue(true),
-    ...overrides,
-  } satisfies DealRepository
-}
+import { dealRepo, dealRow } from '../../fixtures/repos.ts'
 
 describe('DealService', () => {
   it('advances to the next stage and passes the version for optimistic locking', async () => {
-    const repository = repo()
+    const repository = dealRepo()
     const advanced = await new DealService(repository).advance(
       'dl_1',
       'org_1',
@@ -54,21 +20,15 @@ describe('DealService', () => {
   })
 
   it('rejects skipping stages', async () => {
-    const service = new DealService(
-      repo({ findById: vi.fn().mockResolvedValue(deal()) }),
-    )
+    const service = new DealService(dealRepo())
     await expect(
       service.advance('dl_1', 'org_1', 'NEGOTIATION'),
-    ).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR',
-    })
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 
   it('rejects advancing to the current stage with a conflict', async () => {
     const service = new DealService(
-      repo({
-        findById: vi.fn().mockResolvedValue(deal({ stage: 'PROPOSAL' })),
-      }),
+      dealRepo({ findById: vi.fn().mockResolvedValue(dealRow({ stage: 'PROPOSAL' })) }),
     )
     await expect(
       service.advance('dl_1', 'org_1', 'PROPOSAL'),
@@ -76,24 +36,23 @@ describe('DealService', () => {
   })
 
   it('only wins from negotiation', async () => {
-    const notReady = new DealService(repo())
+    const notReady = new DealService(dealRepo())
     await expect(notReady.win('dl_1', 'org_1')).rejects.toMatchObject({
       code: 'VALIDATION_ERROR',
     })
 
     const ready = new DealService(
-      repo({
-        findById: vi.fn().mockResolvedValue(deal({ stage: 'NEGOTIATION' })),
-        updateStage: vi.fn().mockResolvedValue(deal({ stage: 'WON' })),
+      dealRepo({
+        findById: vi.fn().mockResolvedValue(dealRow({ stage: 'NEGOTIATION' })),
+        updateStage: vi.fn().mockResolvedValue(dealRow({ stage: 'WON' })),
       }),
     )
-    const won = await ready.win('dl_1', 'org_1')
-    expect(won.stage).toBe('WON')
+    expect((await ready.win('dl_1', 'org_1')).stage).toBe('WON')
   })
 
   it('surfaces optimistic lock failures as 409 conflicts', async () => {
     const locking = new DealService(
-      repo({ update: vi.fn().mockResolvedValue(undefined) }),
+      dealRepo({ update: vi.fn().mockResolvedValue(undefined) }),
     )
     await expect(
       locking.update({
@@ -107,8 +66,8 @@ describe('DealService', () => {
     })
 
     const stageRace = new DealService(
-      repo({
-        findById: vi.fn().mockResolvedValue(deal({ stage: 'NEGOTIATION' })),
+      dealRepo({
+        findById: vi.fn().mockResolvedValue(dealRow({ stage: 'NEGOTIATION' })),
         updateStage: vi.fn().mockResolvedValue(undefined),
       }),
     )
@@ -119,7 +78,7 @@ describe('DealService', () => {
 
   it('throws NotFoundError for unknown deals', async () => {
     const service = new DealService(
-      repo({
+      dealRepo({
         findById: vi.fn().mockResolvedValue(undefined),
         softDelete: vi.fn().mockResolvedValue(false),
       }),
