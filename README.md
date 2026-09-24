@@ -56,9 +56,10 @@ bun run docker:up         # postgres, redis, api
 | `bun run check` | lint + typecheck + format check |
 | `bun run test` | full test suite |
 | `bun run test:watch` / `test:coverage` | watch mode / coverage |
-| `bun run prepush` | everything CI runs: check + tests |
+| `git config core.hooksPath .githooks` | enable the pre-push gate (all CI jobs locally) |
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
+| `bun run db:migrate:status` | read-only: applied vs pending migrations |
 | `bun run seed` | load demo data |
 | `bun run docker:up` / `down` / `logs` | local Postgres + Redis + API |
 | `bun run build` | compile to `dist/` |

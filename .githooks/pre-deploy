@@ -1,0 +1,43 @@
+#!/bin/sh
+# Pre-deploy gate: proves the tree is safe to ship before a release.
+#
+#   1. the working tree is clean (the image is built from committed code)
+#   2. lint, typecheck, format check
+#   3. full test suite
+#   4. clean build
+#   5. read-only migration report
+#
+# It never writes to the database. Applying migrations stays with the
+# deployer's preDeployCommand (render.yml: bun run db:migrate:up), so this
+# gate can be pointed at production without side effects.
+#
+# Usage: sh .githooks/pre-deploy
+set -e
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "pre-deploy: working tree is not clean:"
+  git status --short
+  echo "pre-deploy: commit or stash before deploying"
+  exit 1
+fi
+echo "pre-deploy: working tree is clean ($(git rev-parse --short HEAD))"
+
+echo "pre-deploy: lint, typecheck, format check"
+bun run check
+
+echo "pre-deploy: tests"
+bun run test
+
+echo "pre-deploy: build"
+bun run build
+
+# Read-only. Without DATABASE_URL there is nothing to compare against, which
+# is not a failure: the deploy applies the pending migrations itself.
+if [ -z "$DATABASE_URL" ]; then
+  echo "pre-deploy: DATABASE_URL not set - skipped the migration report"
+  exit 0
+fi
+
+echo "pre-deploy: migration report (read-only)"
+bun run db:migrate:status
+echo "pre-deploy: pending migrations are applied by preDeployCommand at deploy time"

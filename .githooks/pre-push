@@ -1,6 +1,31 @@
 #!/bin/sh
-# Runs the same gates as CI (lint, typecheck, format, tests) before any push.
+# Pre-push gate: every CI job, run before anything leaves the machine.
+#   quality -> lint, typecheck, format check
+#   tests   -> full suite
+#   build   -> clean compile to dist/
+#   image   -> docker build, boot it, require /health
+#
 # Enable once per clone:  git config core.hooksPath .githooks
 set -e
-echo "pre-push: running checks and tests..."
-bun run prepush
+
+echo "pre-push: lint, typecheck, format check"
+bun run check
+
+echo "pre-push: tests"
+bun run test
+
+echo "pre-push: build"
+bun run build
+
+# The image steps need network and a Docker daemon. Without them the hook
+# warns and skips those two steps; CI remains the authority on them.
+if ! docker info > /dev/null 2>&1; then
+  echo "pre-push: docker unavailable - skipped image build and smoke test"
+  exit 0
+fi
+
+echo "pre-push: docker build"
+bun run docker:build
+
+echo "pre-push: smoke test the image"
+sh .githooks/smoke.sh crm-api:local

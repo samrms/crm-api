@@ -4,6 +4,7 @@ import {
   type MigrationProvider,
   Migrator as KyselyMigrator,
 } from 'kysely'
+import { sql } from 'kysely'
 import { database } from './connection.js'
 import type { Database } from './types.js'
 import { logger } from '@/shared/logging/logger.js'
@@ -76,6 +77,30 @@ export class DatabaseMigrator {
     }
   }
 
+  /**
+   * Read-only: compares the migrations in code with the ones recorded in the
+   * target database. Never writes, so it is safe to run against production as
+   * a pre-deploy report.
+   */
+  async status(): Promise<{ applied: string[]; pending: string[] }> {
+    const provider = new StaticMigrationProvider()
+    const all = Object.keys(await provider.getMigrations()).sort()
+    let applied: string[] = []
+    try {
+      const result = await sql<{ name: string }>`
+        select name from kysely_migrations
+      `.execute(this.db)
+      applied = result.rows.map((row) => row.name)
+    } catch {
+      // No migration table yet: the database has nothing applied.
+      applied = []
+    }
+    return {
+      applied,
+      pending: all.filter((name) => !applied.includes(name)),
+    }
+  }
+
   async down(): Promise<void> {
     const migrator = new KyselyMigrator({
       db: this.db,
@@ -98,6 +123,20 @@ export class DatabaseMigrator {
 
 if (process.argv[1] && process.argv[1].endsWith('migrate.ts')) {
   const migrator = new DatabaseMigrator()
-  const command = process.argv[2] === 'down' ? migrator.down() : migrator.up()
-  command.then(() => process.exit(0)).catch(() => process.exit(1))
+  const verb = process.argv[2]
+
+  if (verb === 'status') {
+    migrator
+      .status()
+      .then(({ applied, pending }) => {
+        console.log(`applied:  ${applied.length}`)
+        console.log(`pending:  ${pending.length}`)
+        for (const name of pending) console.log(`  pending: ${name}`)
+        process.exit(0)
+      })
+      .catch(() => process.exit(1))
+  } else {
+    const command = verb === 'down' ? migrator.down() : migrator.up()
+    command.then(() => process.exit(0)).catch(() => process.exit(1))
+  }
 }

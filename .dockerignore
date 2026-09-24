@@ -6,7 +6,9 @@ storage
 .env.*
 .git
 .github
-.husky
+.githooks
+scriptsgithooks
+scripts
 *.log
 tests
 docs
