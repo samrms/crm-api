@@ -35,7 +35,7 @@ Value instances, so they never appear in the repository.
 ## Migrations on deploy
 
 ```yaml
-preDeployCommand: bun run db:migrate
+preDeployCommand: bun run db:migrate:up
 ```
 
 Runs after the image is built and before the new version serves traffic, so a

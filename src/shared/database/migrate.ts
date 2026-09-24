@@ -94,16 +94,6 @@ export class DatabaseMigrator {
 
 if (process.argv[1] && process.argv[1].endsWith('migrate.ts')) {
   const migrator = new DatabaseMigrator()
-  const command = process.argv[2]
-  if (command === 'rollback') {
-    migrator
-      .down()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1))
-  } else {
-    migrator
-      .up()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1))
-  }
+  const command = process.argv[2] === 'down' ? migrator.down() : migrator.up()
+  command.then(() => process.exit(0)).catch(() => process.exit(1))
 }

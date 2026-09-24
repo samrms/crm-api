@@ -36,7 +36,7 @@ the repository root. Host ports are configurable in `.env`; override them when
    runs as a non-root user (uid 1001) and starts `bun dist/server.js`
 
 `src/` ships in the final image deliberately: Bun resolves the `@/*` path
-aliases from source, and `bun run db:migrate` executes the TypeScript
+aliases from source, and `bun run db:migrate:up` executes the TypeScript
 migration directly. Removing `src/` breaks both the server and migrations.
 
 `.dockerignore` at the repository root keeps `node_modules`, `dist`, `.env`,

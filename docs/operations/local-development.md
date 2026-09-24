@@ -63,9 +63,9 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run format` / `format:check` | Prettier |
 | `bun run typecheck` | `tsc --noEmit` |
 | `bun run test` / `test:watch` / `test:coverage` | vitest |
-| `bun run db:migrate` | apply pending migrations |
-| `bun run db:migrate:rollback` | roll back the last migration |
-| `bun run db:reset` | rollback + migrate (destructive) |
+| `bun run db:migrate:up` | apply pending migrations |
+| `bun run db:migrate:down` | roll back the last migration |
+| `bun run db:reset` | down + up (destructive) |
 | `bun run seed` | load deterministic demo data |
 | `bun run build` | compile to `dist/` (typechecks first) |
 

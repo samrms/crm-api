@@ -20,7 +20,7 @@ A modular monolith with clear module boundaries: `users`, `crm`, `bulk`, `engage
 ## Run
 
 ```bash
-bun run db:migrate
+bun run db:migrate:up
 bun run dev
 ```
 

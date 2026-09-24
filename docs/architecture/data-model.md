@@ -74,6 +74,6 @@ Numbered, immutable, and listed explicitly in
 | 009–011 | activities, tasks, audit_events |
 | 012–015 | outbox_events, imports, exports, password_reset_tokens (no-op) |
 
-Run `bun run db:migrate` to apply, `bun run db:migrate:rollback` to undo the
-last one. Never delete an applied migration —
+Run `bun run db:migrate:up` to apply pending migrations and
+`bun run db:migrate:down` to roll back the last one. Never delete an applied migration —
 see [ADR 005](../adr/005-migration-immutability.md).

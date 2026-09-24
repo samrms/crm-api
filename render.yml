@@ -15,7 +15,7 @@ services:
     plan: 0.5c-512mb
     healthCheckPath: /health
     # Migrations run after the image builds and before the new version serves traffic.
-    preDeployCommand: bun run db:migrate
+    preDeployCommand: bun run db:migrate:up
     envVars:
       - key: NODE_ENV
         value: production
