@@ -1,40 +1,31 @@
-#!/bin/sh
-# Pre-push gate: every CI job, run before anything leaves the machine.
-#   quality -> lint, typecheck, format check
-#   tests   -> full suite
-#   build   -> clean compile to dist/
-#   image   -> docker build, boot it, require /health
+#!/usr/bin/env bash
+# Pre-push hook: run the same gate CI runs, before anything leaves the machine.
 #
-# Enable once per clone:  git config core.hooksPath .githooks
-set -e
+# `bun run pre:push` runs .githooks/verify: lint, typecheck, format, tests, the
+# clean build, then pre:docker. This is deliberately the exact CI command, so a
+# green push implies a green pipeline.
+#
+# Activated by `git config core.hooksPath .githooks`, which points Git at this
+# committed file.
+#
+# Escape hatch for a WIP push: git push --no-verify (or PREPUSH_SKIP=1).
+set -Eeuo pipefail
+cd "$(dirname "$0")/.."
+# shellcheck source=.githooks/lib.sh
+. .githooks/lib.sh
 
-echo "pre-push: lint, typecheck, format check"
-bun run check
-
-echo "pre-push: tests"
-bun run test
-
-echo "pre-push: build"
-bun run build
-
-# The image steps need network and a Docker daemon. Without them the hook
-# warns and skips those two steps; CI remains the authority on them.
-if ! docker info > /dev/null 2>&1; then
-  echo "pre-push: docker unavailable - skipped image build and smoke test"
+if [ "${PREPUSH_SKIP:-0}" = "1" ]; then
+  warn "pre-push skipped (PREPUSH_SKIP=1)"
   exit 0
 fi
 
-# The build downloads dependencies from the registry, so it can hang for a
-# long time on a machine without registry access. Cap it: a gate that times
-# out with an error is useful, one that never returns is not.
-if command -v timeout > /dev/null 2>&1; then
-  timeout "${DOCKER_BUILD_TIMEOUT:-900}" bun run docker:build || {
-    echo "pre-push: docker build failed or timed out - it needs registry access"
-    exit 1
-  }
+need_cmd bun
+log "pre-push: bun run pre:push (lint, typecheck, format, tests, build, image)"
+if bun run pre:push; then
+  ok "pre-push passed"
 else
-  bun run docker:build
+  status=$?
+  warn "pre-push failed (exit $status). Nothing was pushed."
+  warn "fix the failures above, or bypass once with: git push --no-verify"
+  exit "$status"
 fi
-
-echo "pre-push: smoke test the image"
-sh .githooks/smoke.sh crm-api:local

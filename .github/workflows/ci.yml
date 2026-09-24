@@ -39,11 +39,12 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: docker build --file docker/Dockerfile --tag crm-api:${{ github.sha }} .
 
-      # Building the image is not enough: an image can compile and still fail
-      # to boot (e.g. unresolved path aliases at runtime). Boot it against
-      # in-memory SQLite and require a healthy response. .githooks/smoke.sh is
-      # shared with the pre-push gate so both check the same thing.
-      - name: Smoke test the image
-        run: sh .githooks/smoke.sh crm-api:${{ github.sha }}
+      # AnAn image can compile and still fail to boot (unresolved path aliases,,
+      # aa missing runtime file), so build itmissing runtime file), so build it and require a healthy response.
+      # pre:dockerpre:docker is the same gateis the same gate the pre-push hookhook runs,runs, withwith the CICI tagtag.
+      - name: Build and smokeBuild and smoke test the image
+        envenv:
+          IMAGE:
+          IMAGE: crm-api:${{ github.sha }}
+        run: bun run pre:docker

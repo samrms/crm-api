@@ -56,7 +56,10 @@ bun run docker:up         # postgres, redis, api
 | `bun run check` | lint + typecheck + format check |
 | `bun run test` | full test suite |
 | `bun run test:watch` / `test:coverage` | watch mode / coverage |
-| `git config core.hooksPath .githooks` | enable the pre-push gate (all CI jobs locally) |
+| `bun run pre:build` | clean `dist/` and typecheck (run by `build`) |
+| `bun run pre:push` | the pre-push gate: checks, tests, build, image |
+| `bun run pre:deploy` | release gate: clean tree, checks, tests, migration report |
+| `bun run pre:docker` | build the image, boot it, require `/health` |
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run db:migrate:status` | read-only: applied vs pending migrations |
