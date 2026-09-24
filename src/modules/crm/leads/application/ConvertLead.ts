@@ -10,7 +10,6 @@ import {
   NotFoundError,
 } from '@/shared/errors/AppError.js'
 import type { Database } from '@/shared/database/types.js'
-import { publishOutboxEvent } from '@/shared/database/outbox.js'
 import type { LeadsTable } from '@/shared/database/types.js'
 
 export interface ConvertLeadInput {
@@ -152,17 +151,6 @@ export class ConvertLead {
           created_at: new Date(),
         })
         .execute()
-
-      await publishOutboxEvent(trx, {
-        organizationId,
-        type: 'LEAD_CONVERTED',
-        payload: {
-          leadId,
-          dealId: deal.id,
-          companyId: company.id,
-          contactId: contact.id,
-        },
-      })
 
       return {
         lead: { id: lead.id, status: 'CONVERTED' },

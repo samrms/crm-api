@@ -38,11 +38,6 @@ export interface LeadRepository {
     status: LeadRow['status'],
     version: number,
   ): Promise<LeadRow | undefined>
-  updateWithDeal(
-    id: string,
-    organizationId: string,
-    dealId: string,
-  ): Promise<void>
   softDelete(id: string, organizationId: string): Promise<boolean>
 }
 
@@ -174,19 +169,6 @@ export class PostgresLeadRepository implements LeadRepository {
       .returningAll()
       .executeTakeFirst()
     return row as LeadRow | undefined
-  }
-
-  async updateWithDeal(
-    id: string,
-    organizationId: string,
-    dealId: string,
-  ): Promise<void> {
-    await this.db
-      .updateTable('leads')
-      .set({ convertedDealId: dealId, updated_at: new Date() })
-      .where('id', '=', id)
-      .where('organization_id', '=', organizationId)
-      .execute()
   }
 
   async softDelete(id: string, organizationId: string): Promise<boolean> {

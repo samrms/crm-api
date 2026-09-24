@@ -11,8 +11,6 @@ export async function hashPassword(password: string): Promise<string> {
   return argon2.hash(password, ARGON2_OPTIONS)
 }
 
-export const hash = hashPassword
-
 export async function verifyPassword(
   password: string,
   hash: string,

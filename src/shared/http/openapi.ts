@@ -1,16 +1,14 @@
-import swagger from '@fastify/swagger'
-import swaggerUi from '@fastify/swagger-ui'
-import type { FastifyInstance } from 'fastify'
+import type swagger from '@fastify/swagger'
 
 type SwaggerOptions = Extract<
   Parameters<typeof swagger>[1],
   { openapi?: unknown }
 >
-type Json = Record<string, unknown>
 type SchemasMap = NonNullable<
   NonNullable<NonNullable<SwaggerOptions['openapi']>['components']>['schemas']
 >
 type SchemaObject = Exclude<SchemasMap[string], { $ref: string }>
+type Json = Record<string, unknown>
 
 const str: Json = { type: 'string' }
 const nullable = (schema: Json): Json => ({ ...schema, nullable: true })
@@ -18,11 +16,10 @@ const num: Json = { type: 'number' }
 const int: Json = { type: 'integer' }
 const bool: Json = { type: 'boolean' }
 const date: Json = { type: 'string', format: 'date-time' }
-const ndate = nullable(date)
-const timestampColumns = {
+const timestamps: Json = {
   created_at: date,
   updated_at: date,
-  deleted_at: ndate,
+  deleted_at: nullable(date),
 }
 
 const ref = (name: string): Json => ({ $ref: `#/components/schemas/${name}` })
@@ -48,13 +45,32 @@ const paged = (item: string): Json => ({
     _links: links,
   },
 })
+const entity = (properties: Json, required: string[]): Json => ({
+  type: 'object',
+  required,
+  properties: { ...properties, ...timestamps, _links: links },
+})
 
 const forbidden: Json = err('Forbidden: requires OWNER or ADMIN role')
 const conflict: Json = err(
   'Conflict: resource state does not allow this action',
 )
+const email: Json = { type: 'string', format: 'email' }
+const jobStatus: Json = {
+  type: 'string',
+  enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
+}
+const jobType: Json = {
+  type: 'string',
+  enum: ['companies', 'contacts', 'leads'],
+}
 
-const authData = () => data(ref('AuthSessionData'))
+const RESOURCES: Record<string, string> = {
+  companies: 'Company',
+  contacts: 'Contact',
+  leads: 'Lead',
+  deals: 'Deal',
+}
 
 class OpenApiDocumentFactory {
   build(): SwaggerOptions {
@@ -137,11 +153,7 @@ class OpenApiDocumentFactory {
       AuthUser: {
         type: 'object',
         required: ['id', 'email', 'name'],
-        properties: {
-          id: str,
-          email: { type: 'string', format: 'email' },
-          name: str,
-        },
+        properties: { id: str, email, name: str },
       },
       OrganizationSummary: {
         type: 'object',
@@ -161,10 +173,7 @@ class OpenApiDocumentFactory {
         required: ['user'],
         properties: {
           user: ref('AuthUser'),
-          organization: {
-            nullable: true,
-            allOf: [ref('OrganizationSummary')],
-          },
+          organization: { nullable: true, allOf: [ref('OrganizationSummary')] },
           role: {
             type: 'string',
             enum: ['OWNER', 'ADMIN', 'MEMBER'],
@@ -172,10 +181,8 @@ class OpenApiDocumentFactory {
           },
         },
       },
-      Company: {
-        type: 'object',
-        required: ['id', 'organization_id', 'name'],
-        properties: {
+      Company: entity(
+        {
           id: str,
           organization_id: str,
           name: str,
@@ -184,36 +191,30 @@ class OpenApiDocumentFactory {
           size: nullable(str),
           website: nullable(str),
           notes: nullable(str),
-          ...timestampColumns,
-          _links: links,
         },
-      },
-      Contact: {
-        type: 'object',
-        required: ['id', 'organization_id', 'email'],
-        properties: {
+        ['id', 'organization_id', 'name'],
+      ),
+      Contact: entity(
+        {
           id: str,
           organization_id: str,
           company_id: nullable(str),
-          email: { type: 'string', format: 'email' },
+          email,
           firstName: str,
           lastName: str,
           phone: nullable(str),
           title: nullable(str),
           notes: nullable(str),
-          ...timestampColumns,
-          _links: links,
         },
-      },
-      Lead: {
-        type: 'object',
-        required: ['id', 'organization_id', 'email', 'status'],
-        properties: {
+        ['id', 'organization_id', 'email'],
+      ),
+      Lead: entity(
+        {
           id: str,
           organization_id: str,
           companyId: nullable(str),
           contactId: nullable(str),
-          email: { type: 'string', format: 'email' },
+          email,
           firstName: str,
           lastName: str,
           company: nullable(str),
@@ -231,14 +232,11 @@ class OpenApiDocumentFactory {
           convertedDealId: nullable(str),
           notes: nullable(str),
           version: int,
-          ...timestampColumns,
-          _links: links,
         },
-      },
-      Deal: {
-        type: 'object',
-        required: ['id', 'organization_id', 'title', 'stage'],
-        properties: {
+        ['id', 'organization_id', 'email', 'status'],
+      ),
+      Deal: entity(
+        {
           id: str,
           organization_id: str,
           companyId: nullable(str),
@@ -258,13 +256,12 @@ class OpenApiDocumentFactory {
               'LOST',
             ],
           },
-          expectedCloseDate: ndate,
+          expectedCloseDate: nullable(date),
           notes: nullable(str),
           version: int,
-          ...timestampColumns,
-          _links: links,
         },
-      },
+        ['id', 'organization_id', 'title', 'stage'],
+      ),
       ConversionResult: {
         type: 'object',
         required: ['lead', 'deal', 'company', 'contact'],
@@ -275,63 +272,75 @@ class OpenApiDocumentFactory {
           contact: ref('Contact'),
         },
       },
-      ImportJob: {
-        type: 'object',
-        required: ['id', 'type', 'status'],
-        properties: {
+      ImportJob: entity(
+        {
           id: str,
           organization_id: str,
           actor_id: str,
-          type: { type: 'string', enum: ['companies', 'contacts', 'leads'] },
-          status: {
-            type: 'string',
-            enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
-          },
+          type: jobType,
+          status: jobStatus,
           total: int,
           processed: int,
           successful: int,
           failed: int,
           file_path: nullable(str),
           error_message: nullable(str),
-          ...timestampColumns,
-          _links: links,
         },
-      },
+        ['id', 'type', 'status'],
+      ),
       ImportAccepted: {
         type: 'object',
         required: ['id', 'status', 'type'],
         properties: { id: str, status: str, type: str, _links: links },
       },
-      ExportJob: {
-        type: 'object',
-        required: ['id', 'type', 'status'],
-        properties: {
+      ExportJob: entity(
+        {
           id: str,
           organization_id: str,
           actor_id: str,
-          type: { type: 'string', enum: ['companies', 'contacts', 'leads'] },
-          status: {
-            type: 'string',
-            enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
-          },
+          type: jobType,
+          status: jobStatus,
           file_path: nullable(str),
           download_url: nullable(str),
           error_message: nullable(str),
-          ...timestampColumns,
-          _links: links,
         },
-      },
+        ['id', 'type', 'status'],
+      ),
     }
   }
 
   private routes(): Record<string, Json> {
+    const routes: Record<string, Json> = {}
+    for (const [resource, item] of Object.entries(RESOURCES)) {
+      const base = `/api/v1/${resource}`
+      routes[`GET ${base}`] = {
+        '200': json(`Paginated ${resource}`, paged(item)),
+      }
+      routes[`GET ${base}/{id}`] = { '200': json(item, data(ref(item))) }
+      routes[`POST ${base}`] = {
+        '201': json(`${item} created`, data(ref(item))),
+        '403': forbidden,
+      }
+      routes[`PATCH ${base}/{id}`] = {
+        '200': json(`${item} updated`, data(ref(item))),
+        '403': forbidden,
+      }
+      routes[`DELETE ${base}/{id}`] = { '204': noContent, '403': forbidden }
+    }
     return {
+      ...routes,
       'POST /api/v1/auth/register': {
-        '201': json('Organization, owner and session created', authData()),
+        '201': json(
+          'Organization, owner and session created',
+          data(ref('AuthSessionData')),
+        ),
         '409': err('Conflict: email already registered'),
       },
       'POST /api/v1/auth/login': {
-        '200': json('Authenticated; session cookie set', authData()),
+        '200': json(
+          'Authenticated; session cookie set',
+          data(ref('AuthSessionData')),
+        ),
         '401': err('Invalid email or password'),
       },
       'POST /api/v1/auth/password/change': {
@@ -345,58 +354,6 @@ class OpenApiDocumentFactory {
       'GET /api/v1/auth/me': {
         '200': json('Current user, organization and role', data(ref('MeData'))),
       },
-      'GET /api/v1/companies': {
-        '200': json('Cursor-paginated companies', paged('Company')),
-      },
-      'GET /api/v1/companies/{id}': {
-        '200': json('Company', data(ref('Company'))),
-      },
-      'POST /api/v1/companies': {
-        '201': json('Company created', data(ref('Company'))),
-        '403': forbidden,
-      },
-      'PATCH /api/v1/companies/{id}': {
-        '200': json('Company updated', data(ref('Company'))),
-        '403': forbidden,
-      },
-      'DELETE /api/v1/companies/{id}': {
-        '204': noContent,
-        '403': forbidden,
-      },
-      'GET /api/v1/contacts': {
-        '200': json('Cursor-paginated contacts', paged('Contact')),
-      },
-      'GET /api/v1/contacts/{id}': {
-        '200': json('Contact', data(ref('Contact'))),
-      },
-      'POST /api/v1/contacts': {
-        '201': json('Contact created', data(ref('Contact'))),
-        '403': forbidden,
-      },
-      'PATCH /api/v1/contacts/{id}': {
-        '200': json('Contact updated', data(ref('Contact'))),
-        '403': forbidden,
-      },
-      'DELETE /api/v1/contacts/{id}': {
-        '204': noContent,
-        '403': forbidden,
-      },
-      'GET /api/v1/leads': {
-        '200': json('Cursor-paginated leads', paged('Lead')),
-      },
-      'GET /api/v1/leads/{id}': { '200': json('Lead', data(ref('Lead'))) },
-      'POST /api/v1/leads': {
-        '201': json('Lead created', data(ref('Lead'))),
-        '403': forbidden,
-      },
-      'PATCH /api/v1/leads/{id}': {
-        '200': json('Lead updated', data(ref('Lead'))),
-        '403': forbidden,
-      },
-      'DELETE /api/v1/leads/{id}': {
-        '204': noContent,
-        '403': forbidden,
-      },
       'POST /api/v1/leads/{id}/qualify': {
         '200': json('Lead advanced to the next status', data(ref('Lead'))),
         '403': forbidden,
@@ -408,22 +365,6 @@ class OpenApiDocumentFactory {
         ),
         '403': forbidden,
         '409': conflict,
-      },
-      'GET /api/v1/deals': {
-        '200': json('Cursor-paginated deals', paged('Deal')),
-      },
-      'GET /api/v1/deals/{id}': { '200': json('Deal', data(ref('Deal'))) },
-      'POST /api/v1/deals': {
-        '201': json('Deal created', data(ref('Deal'))),
-        '403': forbidden,
-      },
-      'PATCH /api/v1/deals/{id}': {
-        '200': json('Deal updated', data(ref('Deal'))),
-        '403': forbidden,
-      },
-      'DELETE /api/v1/deals/{id}': {
-        '204': noContent,
-        '403': forbidden,
       },
       'POST /api/v1/deals/{id}/advance': {
         '200': json('Deal advanced to a later stage', data(ref('Deal'))),
@@ -474,22 +415,8 @@ class OpenApiDocumentFactory {
         }),
       },
       'GET /ready': {
-        '200': json('Ready', {
-          type: 'object',
-          properties: {
-            status: str,
-            checks: { type: 'object', additionalProperties: str },
-            timestamp: str,
-          },
-        }),
-        '503': json('Degraded', {
-          type: 'object',
-          properties: {
-            status: str,
-            checks: { type: 'object', additionalProperties: str },
-            timestamp: str,
-          },
-        }),
+        '200': json('Ready', readiness),
+        '503': json('Degraded', readiness),
       },
       'GET /metrics': {
         '200': json('Process metrics', {
@@ -526,7 +453,12 @@ class OpenApiDocumentFactory {
         }
         const responses = (op.responses ??= {})
         const route = routes[`${method.toUpperCase()} ${path}`]
-        if (route) Object.assign(responses, route)
+        if (route) {
+          for (const code of Object.keys(responses)) {
+            if (/^2\d\d$/.test(code) && !route[code]) delete responses[code]
+          }
+          Object.assign(responses, route)
+        }
         if (!op.tags || op.tags.length === 0) continue
         const add = (code: string, response: Json) => {
           if (!responses[code]) responses[code] = response
@@ -542,17 +474,13 @@ class OpenApiDocumentFactory {
   }
 }
 
-export const openapi: SwaggerOptions = new OpenApiDocumentFactory().build()
-
-export class OpenApiPlugin {
-  async register(app: FastifyInstance): Promise<void> {
-    await app.register(swagger, openapi)
-    await app.register(swaggerUi, { routePrefix: '/docs' })
-    app.addHook('onSend', async (request, reply) => {
-      if (request.url.startsWith('/docs')) {
-        reply.removeHeader('content-security-policy')
-        reply.removeHeader('cross-origin-embedder-policy')
-      }
-    })
-  }
+const readiness: Json = {
+  type: 'object',
+  properties: {
+    status: str,
+    checks: { type: 'object', additionalProperties: str },
+    timestamp: str,
+  },
 }
+
+export const openapi: SwaggerOptions = new OpenApiDocumentFactory().build()
