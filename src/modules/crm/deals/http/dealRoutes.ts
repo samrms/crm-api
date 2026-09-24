@@ -29,6 +29,14 @@ const updateDealSchema = z.object({
   notes: z.string().max(5000).optional(),
 })
 
+const listDealsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  after: z.string().optional(),
+  stage: z
+    .enum(['NEW', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'])
+    .optional(),
+})
+
 const advanceDealSchema = z.object({
   stage: z.enum(['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']),
 })
@@ -62,25 +70,14 @@ export class DealRoutes {
 
       async (request: FastifyRequest, reply: FastifyReply) => {
         const orgId = request.auth!.organizationId
-        const {
-          limit: rawLimit,
-          after,
-          stage,
-        } = request.query as {
-          limit?: string
-          after?: string
-          stage?: string
-        }
-        const limit = Math.min(Math.max(Number(rawLimit) || 25, 1), 100)
+        const { limit, after, stage } = listDealsQuerySchema.parse(
+          request.query,
+        )
         const cursor = after ? verifyCursor(after) : null
 
         const deals = await this.service.list(orgId, {
           limit,
-          after: cursor
-            ? Buffer.from(
-                JSON.stringify({ createdAt: cursor.createdAt, id: cursor.id }),
-              ).toString('base64url')
-            : undefined,
+          after: cursor ? encodeCursor(cursor) : undefined,
           stage,
         })
 

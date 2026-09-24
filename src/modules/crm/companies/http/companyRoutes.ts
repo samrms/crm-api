@@ -60,14 +60,7 @@ export class CompanyRoutes {
           {
             limit: query.limit,
             name: query.name,
-            after: cursor
-              ? Buffer.from(
-                  JSON.stringify({
-                    createdAt: cursor.createdAt,
-                    id: cursor.id,
-                  }),
-                ).toString('base64url')
-              : undefined,
+            after: cursor ? encodeCursor(cursor) : undefined,
           },
         )
 

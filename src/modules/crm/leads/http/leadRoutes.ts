@@ -12,6 +12,14 @@ import { NotFoundError } from '@/shared/errors/AppError.js'
 import type { LeadService } from '@/modules/crm/leads/application/LeadService.js'
 import type { ConvertLead } from '@/modules/crm/leads/application/ConvertLead.js'
 
+const listLeadsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  after: z.string().optional(),
+  status: z
+    .enum(['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'DISQUALIFIED'])
+    .optional(),
+})
+
 const createLeadSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(1).max(255),
@@ -68,25 +76,14 @@ export class LeadRoutes {
 
       async (request: FastifyRequest, reply: FastifyReply) => {
         const orgId = request.auth!.organizationId
-        const {
-          limit: rawLimit,
-          after,
-          status,
-        } = request.query as {
-          limit?: string
-          after?: string
-          status?: string
-        }
-        const limit = Math.min(Math.max(Number(rawLimit) || 25, 1), 100)
+        const { limit, after, status } = listLeadsQuerySchema.parse(
+          request.query,
+        )
         const cursor = after ? verifyCursor(after) : null
 
         const leads = await this.service.list(orgId, {
           limit,
-          after: cursor
-            ? Buffer.from(
-                JSON.stringify({ createdAt: cursor.createdAt, id: cursor.id }),
-              ).toString('base64url')
-            : undefined,
+          after: cursor ? encodeCursor(cursor) : undefined,
           status,
         })
 

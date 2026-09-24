@@ -1,4 +1,6 @@
 import type { Kysely } from 'kysely'
+import { decodeCursor } from '@/shared/pagination/CursorEncoder.js'
+import { AppError } from '@/shared/errors/AppError.js'
 import type { ContactsTable, Database } from '@/shared/database/types.js'
 
 export type ContactRow = ContactsTable
@@ -106,9 +108,16 @@ export class PostgresContactRepository implements ContactRepository {
       .limit(opts.limit + 1)
 
     if (opts.after) {
-      const decoded = JSON.parse(
-        Buffer.from(opts.after, 'base64url').toString(),
-      )
+      // The cursor is HMAC-signed, so it must be decoded with the same
+      // helper that produced it. Raw base64 decoding would include the
+      // signature suffix and fail to parse.
+      const decoded = decodeCursor(opts.after)
+      if (!decoded)
+        throw new AppError({
+          statusCode: 400,
+          code: 'INVALID_CURSOR',
+          message: 'Invalid or tampered pagination cursor',
+        })
       query = query.where((eb) =>
         eb.or([
           eb('created_at', '<', new Date(decoded.createdAt)),
