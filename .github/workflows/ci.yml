@@ -40,11 +40,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      # AnAn image can compile and still fail to boot (unresolved path aliases,,
-      # aa missing runtime file), so build itmissing runtime file), so build it and require a healthy response.
-      # pre:dockerpre:docker is the same gateis the same gate the pre-push hookhook runs,runs, withwith the CICI tagtag.
-      - name: Build and smokeBuild and smoke test the image
-        envenv:
-          IMAGE:
+      # An image can compile and still fail to boot (unresolved path aliases, a
+      # missing runtime file), so build it and require a healthy response.
+      # pre:docker is the same gate the pre-push hook runs, tagged with the
+      # commit sha.
+      - name: Build and smoke test the image
+        env:
           IMAGE: crm-api:${{ github.sha }}
         run: bun run pre:docker
