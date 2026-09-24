@@ -19,8 +19,12 @@
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck && bun run format:check",
     "test:watch": "vitest",
+    "prepush": "sh .githooks/pre-push",
+    "predeploy": "sh .githooks/pre-deploy",
     "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && bun run typecheck",
+    "smoke": "sh .githooks/smoke.sh",
     "docker:build": "docker build --file docker/Dockerfile --tag crm-api:local .",
+    "docker:smoke": "docker build --file docker/Dockerfile --tag crm-api:local . && sh .githooks/smoke.sh crm-api:local",
     "db:migrate:up": "bun src/shared/database/migrate.ts up",
     "db:migrate:down": "bun src/shared/database/migrate.ts down",
     "db:migrate:status": "bun src/shared/database/migrate.ts status",
@@ -28,8 +32,7 @@
     "seed": "bun src/shared/database/seed.ts",
     "docker:up": "docker compose -f docker/docker-compose.yml up -d",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
-    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f",
-    "docker:smoke": "docker build --file docker/Dockerfile --tag crm-api:local . && sh .githooks/smoke.sh crm-api:local"
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",

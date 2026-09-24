@@ -66,13 +66,15 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run db:migrate:status` | read-only: applied vs pending migrations |
+| `bun run prepush` / `predeploy` | the gates below, run by hand |
+| `bun run smoke` | boot `crm-api:local` and require `/health` |
 | `bun run db:reset` | down + up (destructive) |
 | `bun run seed` | load deterministic demo data |
 | `bun run build` | compile to `dist/` (typechecks first) |
 
-### GitGit hookshooks
+### GitGitGitGitGitGit hookshookshookshookshookshooks
 
-`.githooks/` holdsholds the pre-push gate. Git does not read hooks from the
+`.githooks/` holdsholdsholdsholdsholdsholds the pre-push gate. Git does not read hooks from the
 repository by default, so enable it once per clone:
 
 ```sh
@@ -109,6 +111,94 @@ gate is safe to point at production.
 
 ```sh
 sh .githooks/pre-deploy
+```
+`.githooks/pre-push` then runs every CI job before anything leaves the
+machine — lint, typecheck, format check, tests, the clean build, the Docker
+image, and a boot check of that image. It blocks the push if any step fails.
+The image steps need network and a running Docker daemon. Without a daemon the
+hook warns and skips those two steps, leaving CI as the authority. The build
+itself is capped (default 900s, override with `DOCKER_BUILD_TIMEOUT`) because
+it downloads dependencies: a machine without registry access otherwise hangs
+instead of failing.
+
+There is no Husky dependency — the hooks are plain shell scripts. Run one by
+hand at any time:
+
+```sh
+sh .githooks/pre-push
+sh .githooks/smoke.sh crm-api:local   # boot an image and require /health
+```
+
+### Pre-deploy gate
+
+`.githooks/pre-deploy` is not a Git hook — Git has no such event. It is a
+script you run before releasing: it requires a clean working tree, then runs
+the same checks, tests and build as the pre-push gate, and finally prints a
+read-only migration report (`bun run db:migrate:status`).
+
+It never writes to the database. Pending migrations are still applied by the
+deployer's `preDeployCommand` (`bun run db:migrate:up` in `render.yml`), so the
+gate is safe to point at production.
+
+```sh
+sh .githooks/pre-deploy
+```
+`.githooks/pre-push` then runs every CI job before anything leaves the
+machine — lint, typecheck, format check, tests, the clean build, the Docker
+image, and a boot check of that image. It blocks the push if any step fails.
+The image steps need network and a running Docker daemon; without them the
+hook warns and skips those two steps, leaving CI as the authority.
+
+There is no Husky dependency — the hooks are plain shell scripts. Run one by
+hand at any time:
+
+```sh
+sh .githooks/pre-push
+sh .githooks/smoke.sh crm-api:local   # boot an image and require /health
+```
+`.githooks/pre-push` then runs every CI job before anything leaves the
+machine — lint, typecheck, format check, tests, the clean build, the Docker
+image, and a boot check of that image. It blocks the push if any step fails.
+The image steps need network and a running Docker daemon. Without a daemon the
+hook warns and skips those two steps, leaving CI as the authority. The build
+itself is capped (default 900s, override with `DOCKER_BUILD_TIMEOUT`) because
+it downloads dependencies: a machine without registry access otherwise hangs
+instead of failing.
+
+There is no Husky dependency — the hooks are plain shell scripts. Run one by
+hand at any time:
+
+```sh
+sh .githooks/pre-push
+sh .githooks/smoke.sh crm-api:local   # boot an image and require /health
+```
+
+### Pre-deploy gate
+
+`.githooks/pre-deploy` is not a Git hook — Git has no such event. It is a
+script you run before releasing: it requires a clean working tree, then runs
+the same checks, tests and build as the pre-push gate, and finally prints a
+read-only migration report (`bun run db:migrate:status`).
+
+It never writes to the database. Pending migrations are still applied by the
+deployer's `preDeployCommand` (`bun run db:migrate:up` in `render.yml`), so the
+gate is safe to point at production.
+
+```sh
+sh .githooks/pre-deploy
+```
+`.githooks/pre-push` then runs every CI job before anything leaves the
+machine — lint, typecheck, format check, tests, the clean build, the Docker
+image, and a boot check of that image. It blocks the push if any step fails.
+The image steps need network and a running Docker daemon; without them the
+hook warns and skips those two steps, leaving CI as the authority.
+
+There is no Husky dependency — the hooks are plain shell scripts. Run one by
+hand at any time:
+
+```sh
+sh .githooks/pre-push
+sh .githooks/smoke.sh crm-api:local   # boot an image and require /health
 ```
 `.githooks/pre-push` then runs every CI job before anything leaves the
 machine — lint, typecheck, format check, tests, the clean build, the Docker
