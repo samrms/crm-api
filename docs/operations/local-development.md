@@ -63,11 +63,25 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run format` / `format:check` | Prettier |
 | `bun run typecheck` | `tsc --noEmit` |
 | `bun run test` / `test:watch` / `test:coverage` | vitest |
+| `bun run prepush` | check + tests, the same gates CI runs |
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run db:reset` | down + up (destructive) |
 | `bun run seed` | load deterministic demo data |
 | `bun run build` | compile to `dist/` (typechecks first) |
+
+### Pre-push hook
+
+`.githooks/pre-push` runs `bun run prepush` (lint, typecheck, format check,
+tests) and blocks the push if any gate fails. Git does not read hooks from the
+repository by default, so enable it once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+There is no Husky dependency: the hook is a four-line shell script. Skip the
+config line and `bun run prepush` is still available by hand.
 
 ## Environment
 

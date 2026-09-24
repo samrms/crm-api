@@ -56,6 +56,7 @@ bun run docker:up         # postgres, redis, api
 | `bun run check` | lint + typecheck + format check |
 | `bun run test` | full test suite |
 | `bun run test:watch` / `test:coverage` | watch mode / coverage |
+| `bun run prepush` | everything CI runs: check + tests |
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run seed` | load demo data |
