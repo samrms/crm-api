@@ -25,6 +25,7 @@
     "db:migrate:status": "bun src/shared/database/migrate.ts status",
     "db:reset": "bun run db:migrate:down && bun run db:migrate:up",
     "seed": "bun src/shared/database/seed.ts",
+    "pre:docker": "bash .githooks/pre-docker",
     "docker:up": "bun run pre:docker && docker compose -f docker/docker-compose.yml up -d --wait --wait-timeout 120",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
     "docker:logs": "docker compose -f docker/docker-compose.yml logs -f"
