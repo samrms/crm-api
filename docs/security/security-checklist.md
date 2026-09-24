@@ -7,10 +7,12 @@ can be verified rather than believed.
 
 - [x] Session cookie is `httpOnly`, `sameSite=lax`, `path=/`, and `secure` in
       production — `src/shared/auth/session.ts`
-- [x] Tokens are 32-character random values (`nanoid`), stored server-side;
-      no self-describing tokens to forge
-- [x] Sessions expire (`SESSION_MAX_AGE_DAYS`) and carry a revocation timestamp
-- [x] Logout revokes the session; password change revokes every *other* session
+- [x] Tokens are HS256-signed JWTs; there is no unsigned or unverified path,
+      and comparisons are constant-time
+- [x] Tokens expire (`JWT_TTL_MINUTES`, default 15); signatures are verified in constant time
+- [ ] **Tokens cannot be revoked before they expire** (`JWT_TTL_MINUTES`, default
+      15). `logout` clears the cookie; a stolen token stays usable until then.
+      Accepted trade-off for stateless auth — see ADR 003.
 - [x] Argon2id password hashing with per-password salt — `src/shared/auth/password.ts`
 - [x] Login failures are generic (`Invalid email or password`) so the endpoint
       is not a user-enumeration oracle
@@ -71,8 +73,8 @@ can be verified rather than believed.
 
 ## Known gaps
 
-- [ ] **No refresh-token or multi-device session list.** Logout revokes one
-      session; users cannot review or revoke other devices from the API.
+- [ ] **No multi-device session list.** Users cannot review or revoke their own
+      devices from the API; a token is only as revocable as its expiry.
 - [ ] **No email verification.** A registered address is trusted immediately.
 - [ ] **No account lockout or login-attempt throttling** beyond the global rate
       limit, which is per-IP rather than per-account.

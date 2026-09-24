@@ -52,8 +52,8 @@ must therefore be backward-compatible with the version currently running
   carries `X-Request-Id`; grep for it to trace a request.
 - **Rate limiting** trusts `X-Forwarded-For` (`trustProxy: true`), which is
   correct behind Render's proxy.
-- **Scaling:** one instance by default. The app is stateless — sessions live in
-  Postgres, caches in Redis — so additional instances are safe, except that
+- **Scaling:** one instance by default. Authentication is a stateless JWT, so
+  additional instances need no shared session store, except that
   `STORAGE_DIR` is per-instance. Give the service a persistent disk before
   enabling import/export in production, or exports written by one instance
   will not be readable by another.

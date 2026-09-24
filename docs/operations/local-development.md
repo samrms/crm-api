@@ -76,8 +76,8 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | `sqlite://` | `sqlite://…` for in-memory/file SQLite, `postgres://…` for PostgreSQL |
-| `SESSION_SECRET` | dev placeholder | **set a real one outside development**; also signs pagination cursors |
-| `SESSION_MAX_AGE_DAYS` | `30` | session lifetime |
+| `SESSION_SECRET` | dev placeholder | **set a real one outside development**; signs JWTs and pagination cursors. Rotating it invalidates every token. |
+| `JWT_TTL_MINUTES` | `15` | token lifetime; tokens cannot be revoked before it expires |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_TIME_WINDOW` | `100` / `1 minute` | per-client request budget |
 | `CORS_ORIGIN` | `http://localhost:5173` | single allowed origin |
 | `STORAGE_DIR` | `./storage` | import/export CSV files |

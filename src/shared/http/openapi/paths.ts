@@ -17,6 +17,7 @@ import {
   ref,
   secured,
   serverError,
+  withSessionCookie,
   str,
   unauthorized,
   validationFailed,
@@ -30,8 +31,8 @@ export const paths: OpenAPIV3.PathsObject = {
       operationId: 'register',
       requestBody: jsonBody('RegisterRequest'),
       responses: {
-        201: ok(
-          'Organization, owner and session created (session cookie set)',
+        201: withSessionCookie(
+          'Organization and owner created; token issued',
           data(ref('AuthSession')),
         ),
         409: err('Conflict: email already registered'),
@@ -47,7 +48,10 @@ export const paths: OpenAPIV3.PathsObject = {
       operationId: 'login',
       requestBody: jsonBody('LoginRequest'),
       responses: {
-        200: ok('Authenticated (session cookie set)', data(ref('AuthSession'))),
+        200: withSessionCookie(
+          'Authenticated; token issued',
+          data(ref('AuthSession')),
+        ),
         401: err('Invalid email or password'),
         422: validationFailed,
         429: rateLimited,

@@ -55,11 +55,11 @@ asserted inside the transaction.
 - **Security suite:** a session from one organization cannot read, write, or
   delete another organization's rows (404, not 403); body fields like
   `organization_id`, `role`, and `deleted_at` are ignored; expired and revoked
-  sessions are rejected; `MEMBER` can read but not write; oversized input is
+  forged and expired tokens are rejected; `MEMBER` can read but not write; oversized input is
   `422`; error bodies carry a request id and no stack traces.
 - **E2E:** register → company → contact → lead → qualify → convert → advance →
-  win, invalid transitions returning `422`, logout killing the session, and
-  password change revoking other sessions.
+  win, invalid transitions returning `422`, token shape and bearer/cookie
+  authentication, and password change invalidating the old password.
 - **Integration:** the OpenAPI document is served with the expected shape, and
   cross-organization repository reads return nothing.
 

@@ -54,7 +54,7 @@ log line.
 | Code | Status | Source |
 | --- | --- | --- |
 | `VALIDATION_ERROR` | `422` | zod parse failure in the handler, or a business-rule violation |
-| `UNAUTHORIZED` | `401` | missing/invalid/expired/revoked session |
+| `UNAUTHORIZED` | `401` | missing, invalid, expired, or badly signed token |
 | `FORBIDDEN` | `403` | role check failed |
 | `NOT_FOUND` | `404` | resource absent in the caller's organization |
 | `CONFLICT` | `409` | duplicate registration, invalid state transition, resource not ready |

@@ -1,37 +1,81 @@
-# ADR 003: Opaque cookie sessions instead of JWTs
+# ADR 003: Stateless JWT authentication
 
 - **Status:** Accepted
-- **Date:** 2026-09-23
+- **Date:** 2026-09-24
+- **Supersedes:** the opaque server-side session design described here previously
 
 ## Context
 
-The API is a server-rendered-adjacent, browser-facing JSON service. It needs
-immediate revocation (logout, password change) and role checks against the
-database, not a token payload that cannot be recalled.
+The API is a browser-facing JSON service. It needs to know, on every request,
+who the caller is, which organization they are acting in, and what role they
+hold.
+
+The previous design kept a `sessions` row per login and sent an opaque token in
+an `httpOnly` cookie. That worked and allowed immediate revocation, but it
+meant a database round trip on **every** authenticated request — and two more
+(one in the role check), because the role lived in `memberships`.
+
+The requirement is the opposite of that: authentication should be verifiable
+from the request alone.
 
 ## Decision
 
-Opaque sessions in the database, delivered as an `httpOnly` cookie.
+Issue a signed **JWT** (HS256) containing identity, organization, and role, and
+verify it without touching the database.
 
-- Login and register create a row in `sessions` with a 32-character random
-  token (`nanoid`), the user, the active organization, and an expiry
-  (`SESSION_MAX_AGE_DAYS`, default 30).
-- The cookie is `httpOnly`, `sameSite=lax`, `path=/`, and `secure` in
-  production.
-- `AuthGuard` resolves the cookie (or an `Authorization: Bearer` token, for
-  non-browser clients) to `request.auth = { userId, organizationId, sessionId }`.
-  Everything downstream reads that context; no handler parses headers.
-- `Authorizer.requireRole(...)` checks the caller's `memberships` row on each
-  request. Roles are `OWNER`, `ADMIN`, `MEMBER`.
-- Logout revokes the row. Password change revokes every session except the
-  current one.
-- Passwords are hashed with argon2id (`src/shared/auth/password.ts`).
+- `src/shared/auth/jwt.ts` signs and verifies the token using `node:crypto`
+  directly. No JWT library was added: the algorithm is a base64url header, a
+  base64url payload, and an HMAC-SHA256 signature — the same primitives already
+  used by `CursorEncoder` for cursor signing.
+- Claims: `sub` (user id), `org` (organization id), `role`, `iat`, `exp`.
+- `JWT_TTL_MINUTES` (default **15**) bounds the token's life. It is short by
+  design — see the trade-off below.
+- The token is delivered **twice**: in an `httpOnly` cookie for browsers, and in
+  the JSON body for non-browser clients, which may also send it as
+  `Authorization: Bearer <token>`.
+- `AuthGuard` verifies the signature with a constant-time comparison and checks
+  expiry. It performs no database query.
+- `Authorizer.requireRole` reads the role from the verified claims. It also
+  performs no database query.
+- Passwords remain argon2id. `logout` clears the cookie; the `sessions` table is
+  dropped in migration 017.
+
+## The trade-off, stated plainly
+
+**A stateless token cannot be revoked before it expires.** The previous design
+could revoke immediately. Three behaviors changed:
+
+| Behavior | Before | Now |
+| --- | --- | --- |
+| `logout` | invalidates the token immediately | clears the cookie; the token is valid until it expires |
+| Password change | revokes all other sessions | those tokens stay valid until they expire |
+| Role or organization change | effective on the next request | effective when the token expires |
+| Authenticated request | 1-2 database queries | 0 |
+
+This is a real reduction in immediate revocation, accepted in exchange for
+removing the per-request database work. It is contained by the short TTL: a
+stolen token is useful for at most `JWT_TTL_MINUTES`.
+
+Two properties protect the common case:
+
+- The cookie is `httpOnly`, so page scripts cannot read the token — an XSS
+  cannot exfiltrate a session credential.
+- Passwords and email still require the server, so an attacker cannot mint a
+  token from a leaked hash alone.
 
 ## Consequences
 
-- Revocation is immediate and auditable; the trade-off is a database read per
-  authenticated request, which the same read would need for role checks anyway.
-- No token expiry/revocation bookkeeping in the client.
-- `SESSION_SECRET` is used only to sign pagination cursors, not sessions. It
-  still must be set and stable, or cursors issued before a restart will be
-  rejected.
+- Authentication and authorization are pure computation. Horizontal scaling
+  needs no shared session store or sticky sessions.
+- Role changes are delayed by up to the TTL. A demotion from `ADMIN` to
+  `MEMBER` does not take effect immediately.
+- Rotating `SESSION_SECRET` invalidates every issued token at once.
+- If immediate revocation becomes a requirement (compliance, a "log out
+  everywhere" feature), the options are a short-lived access token plus a
+  refresh token, or a revocation list. Neither is justified today.
+
+## When to revisit
+
+Add refresh tokens or a revocation list if any of these becomes true:
+logout must invalidate immediately, a user must be able to see and revoke
+their own sessions, or role changes must be immediate.

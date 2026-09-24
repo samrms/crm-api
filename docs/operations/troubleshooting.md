@@ -51,10 +51,10 @@ already running on the machine. Either stop it, or set `POSTGRES_PORT`,
 
 ### Every authenticated request returns 401
 
-The cookie is missing, expired, revoked by logout, or revoked by a password
-change on another session. Check `SESSION_MAX_AGE_DAYS` and the clock. If
-sessions work and then suddenly stop, `SESSION_SECRET` probably changed — it
-also invalidates pagination cursors.
+The token is missing, expired (`JWT_TTL_MINUTES`, default 15), or was signed
+with a different `SESSION_SECRET`. Changing `SESSION_SECRET` invalidates every
+issued token and every pagination cursor at once — the usual cause of
+"everything stopped working" after a deploy.
 
 ### 403 on a write
 

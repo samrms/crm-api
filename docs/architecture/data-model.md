@@ -9,8 +9,6 @@ the migrations in `src/shared/database/migrations/` and typed in
 
 ```
 organizations ──< memberships >── users
-      │                                │
-      │                                └──< sessions >──┘
       │
       ├──< companies ──< contacts
       ├──< leads
@@ -26,10 +24,9 @@ organizations ──< memberships >── users
 | `organizations` | `id`, `name`, `slug` (unique), timestamps, `deleted_at` | the tenant |
 | `users` | `id`, `email` (unique), `name`, `password_hash`, timestamps, `deleted_at` | global identity, not tenant-scoped |
 | `memberships` | `id`, `user_id`, `organization_id`, `role` | unique on `(user_id, organization_id)`; `role` constrained to `OWNER\|ADMIN\|MEMBER` |
-| `sessions` | `id`, `token` (unique), `user_id`, `organization_id`, `expires_at`, `revoked_at` | the active organization for that login |
 
-A user can belong to several organizations; the session pins which one the
-request operates in.
+A user can belong to several organizations; the signed token carries which one
+the request operates in (ADR 003).
 
 ### CRM tables
 
@@ -48,15 +45,14 @@ Nothing advances them today ([ADR 004](../adr/004-retired-async-pipeline.md)).
 
 ## Conventions
 
-- **Ids** are prefixed, sortable strings: `org_`, `user_`, `mem_`, `sess_`,
+- **Ids** are prefixed, sortable strings: `org_`, `user_`, `mem_`,
   `co_`, `ct_`, `ld_`, `dl_`, `imp_`, `exp_` (see `src/shared/utils/id.ts`).
 - **Timestamps** are `text` columns holding ISO-8601. The SQLite driver revives
   them to `Date` on read so the typed layer sees dates.
 - **Soft deletes**: `deleted_at IS NULL` filters every read.
 - **Optimistic locking**: `version` on `leads` and `deals`; a mismatched
   version is `409 OPTIMISTIC_LOCK_CONFLICT`.
-- **Cascade deletes** on `sessions.user_id`/`organization_id` and
-  `memberships.user_id`/`organization_id`.
+- **Cascade deletes** on `memberships.user_id`/`organization_id`.
 
 ## Migrations
 
@@ -65,12 +61,13 @@ Numbered, immutable, and listed explicitly in
 
 | # | Migration |
 | --- | --- |
-| 001–004 | organizations, users, memberships, sessions |
+| 001–004 | organizations, users, memberships, sessions (dropped in 017) |
 | 005–008 | companies, contacts, leads, deals |
 | 009–012 | activities, tasks, audit_events, outbox_events (all dropped in 016) |
 | 013–014 | imports, exports |
 | 015 | password_reset_tokens (no-op, feature retired) |
 | 016 | drops the tables from 009–012 and 015 that no longer have a writer or reader |
+| 017 | drops `sessions` after authentication moved to stateless JWTs |
 
 Run `bun run db:migrate:up` to apply pending migrations and
 `bun run db:migrate:down` to roll back the last one. Never delete an applied migration —

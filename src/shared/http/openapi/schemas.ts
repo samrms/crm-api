@@ -56,8 +56,17 @@ export const schemas: Record<string, Schema> = {
   },
   AuthSession: {
     type: 'object',
-    required: ['user', 'organization'],
-    properties: { user: ref('AuthUser'), organization: ref('Organization') },
+    required: ['user', 'organization', 'token', 'expiresAt'],
+    properties: {
+      user: ref('AuthUser'),
+      organization: ref('Organization'),
+      token: {
+        type: 'string',
+        description:
+          'Signed JWT. Also set as the `session` cookie. Send as `Cookie: session=<token>` or `Authorization: Bearer <token>`. Expires after JWT_TTL_MINUTES and cannot be revoked before then.',
+      },
+      expiresAt: { type: 'string', format: 'date-time' },
+    },
   },
   Me: {
     type: 'object',

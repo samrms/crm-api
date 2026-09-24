@@ -52,6 +52,21 @@ export const ok = (
   description: string,
   schema: SchemaLike,
 ): OpenAPIV3.ResponseObject => json(description, schema)
+
+/** Auth responses also set the `session` cookie alongside the token in the body. */
+export const withSessionCookie = (
+  description: string,
+  schema: SchemaLike,
+): OpenAPIV3.ResponseObject => ({
+  ...json(description, schema),
+  headers: {
+    'Set-Cookie': {
+      description:
+        'Session cookie (httpOnly). Equivalent to `data.token` in the body.',
+      schema: str,
+    },
+  },
+})
 export const data = (schema: SchemaLike): Schema => ({
   type: 'object',
   required: ['data'],

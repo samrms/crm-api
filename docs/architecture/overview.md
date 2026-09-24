@@ -36,7 +36,7 @@ imports Fastify.
 
 | Module | Owns | Routes |
 | --- | --- | --- |
-| `users` | registration, login, sessions, memberships | `/api/v1/auth/*` |
+| `users` | registration, login, tokens, memberships | `/api/v1/auth/*` |
 | `crm/companies` | customer companies | `/api/v1/companies` |
 | `crm/contacts` | people at companies | `/api/v1/contacts` |
 | `crm/leads` | lead pipeline, conversion | `/api/v1/leads` |
@@ -57,7 +57,7 @@ imports Fastify.
 
 Every table that holds tenant data carries `organization_id`, and every query
 goes through a repository method that takes `organizationId`. The organization
-comes from the session, never from the request body, so there is no code path
+comes from the verified token, never from the request body, so there is no code path
 where a client chooses its tenant. Deletes are soft (`deleted_at`), and every
 read filters on `deleted_at IS NULL`.
 

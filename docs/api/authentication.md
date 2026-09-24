@@ -1,13 +1,15 @@
 # Authentication
 
-All endpoints under `/api/v1` except `register` and `login` require a session.
-Authentication is a cookie, checked on every request against the `sessions`
-table. See [ADR 003](../adr/003-session-authentication.md) for the rationale.
+All endpoints under `/api/v1` except `register` and `login` require a valid
+token. Tokens are stateless JWTs: a request is authenticated by verifying a
+signature, with no database lookup. See
+[ADR 003](../adr/003-session-authentication.md) for the rationale and the
+revocation trade-off.
 
-## Getting a session
+## Getting a token
 
 ```bash
-# Register creates the organization, its OWNER membership, and a session
+# Register creates the organization and its OWNER membership
 curl -c jar -X POST http://localhost:3000/api/v1/auth/register \
   -H 'content-type: application/json' \
   -d '{"email":"me@example.com","password":"password123",
@@ -19,19 +21,22 @@ curl -c jar -X POST http://localhost:3000/api/v1/auth/login \
   -d '{"email":"me@example.com","password":"password123"}'
 ```
 
-Both respond `201`/`200` and set a `session` cookie. The cookie is
-`httpOnly`, `sameSite=lax`, `secure` in production, and expires after
-`SESSION_MAX_AGE_DAYS` (default 30).
+Both respond `201`/`200` with the token in two places: a `session` cookie
+(`httpOnly`, `sameSite=lax`, `secure` in production, `Max-Age` from
+`JWT_TTL_MINUTES`) and `data.token` in the JSON body.
 
-Non-browser clients can send the same token as a bearer:
+Non-browser clients read `data.token` and send it as a bearer:
 
 ```
-Authorization: Bearer <session-token>
+Authorization: Bearer <token>
 ```
 
 The cookie takes precedence when both are present.
 
-## Using the session
+Tokens expire after `JWT_TTL_MINUTES` (default 15) and cannot be revoked
+before then. `logout` clears the cookie.
+
+## Using the token
 
 Every authenticated request exposes an identity to handlers, and the session
 defines the tenant:
@@ -40,7 +45,7 @@ defines the tenant:
 request.auth = {
   userId: 'user_...',
   organizationId: 'org_...',
-  sessionId: 'sess_...',
+  role: 'OWNER' | 'ADMIN' | 'MEMBER',
 }
 ```
 
@@ -71,14 +76,15 @@ A user with no membership in the organization gets `403`, not `404`.
 | `POST` | `/api/v1/auth/logout` | session | `204` | `401` |
 | `GET` | `/api/v1/auth/me` | session | `200` | `401` |
 
-`POST /api/v1/auth/password/change` revokes every session except the one used
-to make the request.
+`POST /api/v1/auth/password/change` takes effect immediately for the password
+itself. Tokens already issued stay valid until they expire, because stateless
+tokens cannot be revoked server-side.
 
 ## Failure modes
 
 | Status | Code | Meaning |
 | --- | --- | --- |
-| `401` | `UNAUTHORIZED` | Missing, invalid, expired, or revoked session |
+| `401` | `UNAUTHORIZED` | Missing, invalid, expired, or badly signed token |
 | `403` | `FORBIDDEN` | Valid session, insufficient role |
 | `409` | `CONFLICT` | Email already registered |
 | `422` | `VALIDATION_ERROR` | Body failed validation |
