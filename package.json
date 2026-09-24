@@ -24,9 +24,9 @@
     "db:migrate:rollback": "bun src/shared/database/migrate.ts rollback",
     "db:reset": "bun run db:migrate:rollback && bun run db:migrate",
     "seed": "bun src/shared/database/seed.ts",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",
