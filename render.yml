@@ -1,0 +1,63 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+# Deploy: Render Dashboard -> New -> Blueprint -> select this repository.
+# Note: Render auto-detects `render.yaml`; this file is `render.yml`, so point
+# Render at it explicitly when creating the blueprint (or rename the file).
+#
+# Runtime: the repo's Dockerfile (docker/Dockerfile) with the repository root
+# as build context, because Bun is not one of Render's native runtimes.
+
+services:
+  - type: web
+    name: crm-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    plan: 0.5c-512mb
+    healthCheckPath: /health
+    # Migrations run after the image builds and before the new version serves traffic.
+    preDeployCommand: bun run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crm-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: crm-redis
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SESSION_MAX_AGE_DAYS
+        value: '30'
+      - key: RATE_LIMIT_MAX
+        value: '100'
+      - key: RATE_LIMIT_TIME_WINDOW
+        value: 1 minute
+      - key: CORS_ORIGIN
+        sync: false
+      - key: STORAGE_DIR
+        value: /tmp/storage
+
+  - type: keyvalue
+    name: crm-redis
+    plan: free
+    region: oregon
+    # Only reachable from other Render services on the private network.
+    ipAllowList: []
+    # Cache-friendly eviction; BullMQ-style job queues would need noeviction.
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: off
+
+databases:
+  - name: crm-db
+    plan: 0.5c-1g
+    region: oregon
+    postgresMajorVersion: '16'
+    databaseName: crm
+    # Only reachable from other Render services on the private network.
+    ipAllowList: []
