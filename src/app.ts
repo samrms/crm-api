@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { config } from './shared/config.js'
 import { ErrorHandlerPlugin } from './shared/http/errorHandler.js'
 import { HealthPlugin } from './shared/http/health.js'
-import { openapi } from './shared/http/openapi.js'
+import { openapi } from './shared/http/openapi/index.js'
 import { Container } from './container.js'
 
 export interface ApplicationOptions {
