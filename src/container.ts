@@ -38,7 +38,7 @@ export class Container {
   private readonly exportService: ExportService
   private readonly importService: ImportService
   private readonly leadService: LeadService
-  private readonly convertLead: ReturnType<ConvertLead['toFn']>
+  private readonly convertLead: ConvertLead
 
   constructor(options: ContainerOptions = {}) {
     const db = database.db
@@ -65,7 +65,7 @@ export class Container {
     this.importService = new ImportService(importRepo)
     this.leadService = new LeadService(leadRepo)
     this.authService = new AuthService(db, userRepo, membershipRepo)
-    this.convertLead = new ConvertLead(db).toFn()
+    this.convertLead = new ConvertLead(db)
   }
 
   async registerRoutes(app: FastifyInstance): Promise<void> {

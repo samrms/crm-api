@@ -10,7 +10,7 @@ import {
 import { getValidLeadTransitions } from '@/modules/crm/leads/domain/LeadState.js'
 import { NotFoundError } from '@/shared/errors/AppError.js'
 import type { LeadService } from '@/modules/crm/leads/application/LeadService.js'
-import type { ConvertLeadFn } from '@/modules/crm/leads/application/ConvertLead.js'
+import type { ConvertLead } from '@/modules/crm/leads/application/ConvertLead.js'
 
 const createLeadSchema = z.object({
   email: z.string().email(),
@@ -55,7 +55,7 @@ function leadLinks(l: {
 export class LeadRoutes {
   constructor(
     private readonly service: LeadService,
-    private readonly convertLead: ConvertLeadFn,
+    private readonly convertLead: ConvertLead,
   ) {}
   async register(app: FastifyInstance): Promise<void> {
     app.get(
@@ -251,7 +251,7 @@ export class LeadRoutes {
         const orgId = request.auth!.organizationId
         const body = convertLeadSchema.parse(request.body)
 
-        const result = await this.convertLead({
+        const result = await this.convertLead.execute({
           leadId: id,
           organizationId: orgId,
           companyName: body.companyName,

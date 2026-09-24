@@ -27,16 +27,8 @@ export interface ConversionResult {
   deal: { id: string; title: string; stage: string; value: number | null }
 }
 
-export type ConvertLeadFn = (
-  input: ConvertLeadInput,
-) => Promise<ConversionResult>
-
 export class ConvertLead {
   constructor(private readonly db: Kysely<Database>) {}
-
-  toFn(): ConvertLeadFn {
-    return (input) => this.execute(input)
-  }
 
   async execute(input: ConvertLeadInput): Promise<ConversionResult> {
     const { leadId, organizationId } = input
