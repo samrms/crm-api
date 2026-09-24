@@ -13,10 +13,9 @@ export default defineConfig({
       NODE_ENV: 'test',
       LOG_LEVEL: 'warn',
     },
-    // The SQLite engine (node// The SQLite engine (node:sqlite / bun:sqlite)) isis loaded through
-    // createRequire at runtimeloaded through
-    // createRequire at runtime, so Vite never resolves it statically and no
-    // dependency inlining or externalization rule is needed.
+    // The SQLite engine (node:sqlite / bun:sqlite) is loaded via createRequire
+    // at runtime, so Vite never resolves it statically and no dependency
+    // inlining or externalization rule is needed.
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
