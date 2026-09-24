@@ -79,7 +79,11 @@ export class AuthService {
       throw new NotFoundError('Organization membership')
     const membership = memberships[0]!
     const session = await createSession(user.id, membership.organization_id)
-    const org = { id: membership.organization_id, name: 'Unknown', slug: 'unknown' }
+    const org = {
+      id: membership.organization_id,
+      name: 'Unknown',
+      slug: 'unknown',
+    }
     return {
       user: { id: user.id, email: user.email, name: user.name },
       organization: org

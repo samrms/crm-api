@@ -52,9 +52,8 @@ function readPayload(event: OutboxEventsTable): Record<string, unknown> {
 }
 
 export interface OutboxRelayOptions {
-  
   intervalMs?: number
-  
+
   batchSize?: number
 }
 
@@ -107,7 +106,7 @@ export class OutboxRelay {
 
     return dispatched
   }
-  
+
   start(): void {
     if (this.timer) return
     this.timer = setInterval(() => {
@@ -116,7 +115,7 @@ export class OutboxRelay {
     this.timer.unref?.()
     logger.info({ intervalMs: this.intervalMs }, 'Outbox relay started')
   }
-  
+
   async stop(): Promise<void> {
     if (this.timer) {
       clearInterval(this.timer)

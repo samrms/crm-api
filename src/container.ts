@@ -52,10 +52,7 @@ export function buildContainer(options: ContainerOptions = {}): AppContainer {
   const exportService = new ExportService(db, exportRepo)
   const importService = new ImportService(db, importRepo)
   const leadService = new LeadService(leadRepo)
-  const authService = new AuthService(
-    userRepo,
-    membershipRepo,
-  )
+  const authService = new AuthService(userRepo, membershipRepo)
   const convertLead = new ConvertLead(db).toFn()
 
   return {

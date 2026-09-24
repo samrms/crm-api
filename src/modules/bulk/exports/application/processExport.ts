@@ -17,7 +17,6 @@ export interface ProcessExportInput {
 }
 
 export interface ProcessExportResult {
-  
   skipped: boolean
   rows: number
   filePath?: string
@@ -28,7 +27,7 @@ type ExportType = 'companies' | 'contacts' | 'leads' | 'deals'
 
 interface ExportShape {
   header: string[]
-  
+
   select: (row: Record<string, unknown>) => unknown[]
 }
 

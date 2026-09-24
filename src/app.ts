@@ -19,19 +19,29 @@ export interface BuildAppOptions {
 
 export async function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
-    logger: { level: config.logLevel, transport: config.isProduction ? undefined : { target: 'pino-pretty', options: { colorize: true } } },
+    logger: {
+      level: config.logLevel,
+      transport: config.isProduction
+        ? undefined
+        : { target: 'pino-pretty', options: { colorize: true } },
+    },
     trustProxy: true,
     genReqId: () => `req_${randomUUID()}`,
   })
   await app.register(helmet)
   await app.register(cors, { origin: config.corsOrigin, credentials: true })
-  const rateLimitOptions = options.rateLimit ?? (config.nodeEnv === 'test' ? null : config.rateLimit)
+  const rateLimitOptions =
+    options.rateLimit ?? (config.nodeEnv === 'test' ? null : config.rateLimit)
   if (rateLimitOptions) await app.register(rateLimit, rateLimitOptions)
   await app.register(cookie)
   await app.register(swagger, {
     openapi: {
       openapi: '3.0.3',
-      info: { title: 'Essential CRM API', version: '0.1.0', description: 'Minimal CRM REST API.' },
+      info: {
+        title: 'Essential CRM API',
+        version: '0.1.0',
+        description: 'Minimal CRM REST API.',
+      },
       tags: [
         { name: 'Auth', description: 'Authentication' },
         { name: 'Organizations', description: 'Organization management' },
@@ -42,7 +52,16 @@ export async function buildApp(options: BuildAppOptions = {}) {
         { name: 'Tasks', description: 'Engagement tasks' },
         { name: 'Bulk', description: 'Import/export' },
       ],
-      components: { securitySchemes: { sessionCookie: { type: 'apiKey', in: 'cookie', name: 'session', description: 'Session cookie' } } },
+      components: {
+        securitySchemes: {
+          sessionCookie: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'session',
+            description: 'Session cookie',
+          },
+        },
+      },
     },
   })
   await app.register(swaggerUi, { routePrefix: '/docs' })

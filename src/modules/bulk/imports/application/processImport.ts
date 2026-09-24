@@ -18,7 +18,6 @@ export interface ProcessImportInput {
 }
 
 export interface ProcessImportResult {
-  
   skipped: boolean
   total: number
   successful: number
