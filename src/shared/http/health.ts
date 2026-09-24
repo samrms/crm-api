@@ -17,11 +17,12 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
     const checks: Record<string, string> = {}
 
     try {
-      const { getPool } = await import('@/shared/database/connection.js')
-      await getPool().query('SELECT 1')
-      checks.postgres = 'ok'
+      const { getDb } = await import('@/shared/database/connection.js')
+      const { sql } = await import('kysely')
+      await sql`select 1`.execute(getDb())
+      checks.database = 'ok'
     } catch {
-      checks.postgres = 'unavailable'
+      checks.database = 'unavailable'
     }
 
     try {
