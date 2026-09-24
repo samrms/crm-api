@@ -1,8 +1,9 @@
+import type { Kysely } from 'kysely'
 import { database } from '@/shared/database/connection.js'
 import { config } from '@/shared/config.js'
 import { nanoid } from 'nanoid'
 import { newId } from '@/shared/utils/id.js'
-import type { SessionsTable } from '@/shared/database/types.js'
+import type { Database, SessionsTable } from '@/shared/database/types.js'
 
 export interface SessionData {
   sessionId: string
@@ -21,14 +22,18 @@ export interface CookieTarget {
 }
 
 export class SessionManager {
-  async create(userId: string, organizationId: string): Promise<SessionData> {
+  async create(
+    userId: string,
+    organizationId: string,
+    db: Kysely<Database> = database.db,
+  ): Promise<SessionData> {
     const id = newId('sess')
     const token = nanoid(32)
     const expiresAt = new Date(
       Date.now() + config.sessionMaxAgeDays * 24 * 60 * 60 * 1000,
     )
 
-    await database.db
+    await db
       .insertInto('sessions')
       .values({
         id,

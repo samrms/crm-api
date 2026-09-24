@@ -59,7 +59,7 @@ export class Container {
     this.exportService = new ExportService(db, exportRepo)
     this.importService = new ImportService(db, importRepo)
     this.leadService = new LeadService(leadRepo)
-    this.authService = new AuthService(userRepo, membershipRepo)
+    this.authService = new AuthService(db, userRepo, membershipRepo)
     this.convertLead = new ConvertLead(db).toFn()
   }
 
