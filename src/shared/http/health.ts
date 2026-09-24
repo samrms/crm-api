@@ -41,7 +41,6 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
       timestamp: new Date().toISOString(),
     })
   })
-}
 
   app.get('/metrics', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({
@@ -50,3 +49,4 @@ export async function healthPlugin(app: FastifyInstance): Promise<void> {
       timestamp: new Date().toISOString(),
     })
   })
+}

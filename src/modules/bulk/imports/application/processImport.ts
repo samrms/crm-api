@@ -27,9 +27,7 @@ export interface ProcessImportResult {
 
 type ImportType = 'companies' | 'contacts' | 'leads'
 
-
 const PROGRESS_FLUSH_EVERY = 50
-
 
 const MAX_REPORTED_ERRORS = 5
 
@@ -109,7 +107,6 @@ function isImportType(value: string): value is ImportType {
   return value === 'companies' || value === 'contacts' || value === 'leads'
 }
 
-
 function normalizeHeader(
   header: string[],
   known: string[],
@@ -128,7 +125,6 @@ function normalizeHeader(
   }
   return { columns, unknown }
 }
-
 
 function blankToUndefined(
   record: Record<string, string>,

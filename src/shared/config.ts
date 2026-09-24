@@ -25,9 +25,9 @@ export const config = {
   logLevel: getEnv('LOG_LEVEL', 'info'),
   isProduction: getEnv('NODE_ENV', 'development') === 'production',
 
-  databaseUrl: getEnv(
-    'DATABASE_URL',
-  ),
+  databaseUrl: getEnv('DATABASE_URL', 'postgres://postgres:postgres@localhost:5432/crm'),
+  redisUrl: getEnv('REDIS_URL', 'redis://localhost:6379'),
+  corsOrigin: getEnv('CORS_ORIGIN', 'http://localhost:5173'),
 
   sessionSecret: getEnv(
     'SESSION_SECRET',

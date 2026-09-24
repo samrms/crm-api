@@ -25,7 +25,6 @@ export function getQueue(): Queue<JobData> {
   return queue
 }
 
-
 export const bullProducer: JobProducer = {
   async add(name, data, opts) {
     await getQueue().add(name, data, {

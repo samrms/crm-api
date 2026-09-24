@@ -95,7 +95,6 @@ export function parseCsvTable(input: string): CsvTable {
   return { header, records }
 }
 
-
 export function toCsvCell(value: unknown): string {
   if (value === null || value === undefined) return ''
   const text = value instanceof Date ? value.toISOString() : String(value)
@@ -104,7 +103,6 @@ export function toCsvCell(value: unknown): string {
   }
   return text
 }
-
 
 export function toCsv(header: string[], rows: unknown[][]): string {
   const lines = [header.map(toCsvCell).join(',')]

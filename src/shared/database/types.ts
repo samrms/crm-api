@@ -53,7 +53,6 @@ export interface Database {
   outbox_events: OutboxEventsTable
   imports: ImportsTable
   exports: ExportsTable
-  password_reset_tokens: PasswordResetTokensTable
   kysely_migrations: KyselyMigrationsTable
 }
 

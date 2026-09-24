@@ -55,9 +55,7 @@ bun run lint && bun run typecheck
 
 ## Docs
 
-- [Development](docs/development.md) — setup, scripts, testing, troubleshooting, seed
-- [Architecture](docs/architecture.md) — modules, domain model, state machines, project structure
-- [API Reference](docs/api.md) — endpoints, auth, errors, pagination, HATEOAS, security
-- [Database](docs/database.md) — schema, migrations, test harness
-- [Deployment](docs/deployment.md) — Docker, compose, CI
-- [ADRs](docs/adr/) — architecture decision records
+- [Read](docs/read.md) — architecture, API, security
+- [Architecture](docs/architecture.md) — minimal modular
+- [Security](docs/security.md) — authentication, authorization, headers
+- [API Auth](docs/api/auth.md) — login, register, session

@@ -107,7 +107,6 @@ export class OutboxRelay {
 
     return dispatched
   }
-
   
   start(): void {
     if (this.timer) return
@@ -117,7 +116,6 @@ export class OutboxRelay {
     this.timer.unref?.()
     logger.info({ intervalMs: this.intervalMs }, 'Outbox relay started')
   }
-
   
   async stop(): Promise<void> {
     if (this.timer) {

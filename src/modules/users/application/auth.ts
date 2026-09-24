@@ -4,16 +4,10 @@ import { hashPassword, verifyPassword } from '@/shared/auth/password.js'
 import {
   createSession,
   revokeSession,
-  revokeAllUserSessions,
   revokeAllExceptSession,
 } from '@/shared/auth/session.js'
 import type { UserRepository } from '@/modules/users/infrastructure/PostgresUserRepository.js'
 import type { MembershipRepository } from '@/modules/users/infrastructure/PostgresMembershipRepository.js'
-import type { OrganizationRepository } from '@/modules/organizations/infrastructure/PostgresOrganizationRepository.js'
-import { nanoid } from 'nanoid'
-import { createHash } from 'node:crypto'
-import { logger } from '@/shared/logging/logger.js'
-import { config } from '@/shared/config.js'
 import {
   ConflictError,
   UnauthorizedError,
@@ -40,7 +34,6 @@ export class AuthService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly membershipRepo: MembershipRepository,
-    private readonly orgRepo: OrganizationRepository,
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResult> {
@@ -57,12 +50,11 @@ export class AuthService {
       name: input.name,
       passwordHash,
     })
-    const slug = toSlug(input.organizationName)
-    const org = await this.orgRepo.create({
+    const org = {
       id: orgId,
       name: input.organizationName,
-      slug,
-    })
+      slug: toSlug(input.organizationName),
+    } as { id: string; name: string; slug: string }
     await this.membershipRepo.create({
       id: membershipId,
       userId,
@@ -87,7 +79,7 @@ export class AuthService {
       throw new NotFoundError('Organization membership')
     const membership = memberships[0]!
     const session = await createSession(user.id, membership.organization_id)
-    const org = await this.orgRepo.findById(membership.organization_id)
+    const org = { id: membership.organization_id, name: 'Unknown', slug: 'unknown' }
     return {
       user: { id: user.id, email: user.email, name: user.name },
       organization: org
@@ -125,7 +117,7 @@ export class AuthService {
   }> {
     const user = await this.userRepo.findById(userId)
     if (!user) throw new NotFoundError('User')
-    const org = await this.orgRepo.findById(organizationId)
+    const org = { id: organizationId, name: 'Unknown', slug: 'unknown' }
     const membership = await this.membershipRepo.findByUserAndOrg(
       userId,
       organizationId,
