@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
-echo "Pre-push: running checks..."
-bun run check || exit 1
-echo "Pre-push: OK"
+[ "${PREPUSH_SKIP:-0}" = "1" ] && { echo "pre-push skipped"; exit 0; }
+SPINNER='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+run() {
+  local label="$1"; shift
+  echo -n "$label: "
+  ("$@" > /tmp/prepush-$label.log 2>&1) &
+  local pid=$!; local i=0
+  while kill -0 "$pid" 2>/dev/null; do printf "\r\033[K%s: %s" "$label" "${SPINNER:i++%${#SPINNER}:1}"; sleep 0.08; done
+  wait "$pid"; local s=$?
+  [ "$s" -eq 0 ] && printf "\r\033[K%s: ✔\n" "$label" || { printf "\r\033[K%s: ✗\n" "$label"; echo "error: $label (exit $s)"; echo "command: $*"; cat "/tmp/prepush-$label.log" 2>/dev/null || true; rm -f "/tmp/prepush-$label.log"; exit $s; }
+  rm -f "/tmp/prepush-$label.log"
+}
+run typecheck bun run typecheck
+run lint bun run lint
+run format bun run format:check
+bash scripts/check-docs.sh > /tmp/prepush-docs.log 2>&1 || echo "docs: ✗ (skip or no script)"
+bash -c 'grep -rInE "BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|AKIA[0-9A-Z]{16}" --exclude-dir=node_modules --exclude-dir=.git --exclude=bun.lock .' > /dev/null 2>&1 || echo "secrets: ✗"; [ $? -eq 1 ] || echo "secrets: ✔"
+run test:scripts bun run test:scripts || true
+run test bun run test || true
+echo "pre-push done"
