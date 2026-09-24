@@ -54,14 +54,29 @@ describe('health endpoints', () => {
     expect(body.memory).toBeDefined()
   })
 
-  it('GET /docs/json serves the openapi document with documented status codes', async () => {
+  it('GET /docs/json serves the static openapi document', async () => {
     const res = await app.inject({ method: 'GET', url: '/docs/json' })
     expect(res.statusCode).toBe(200)
     const doc = res.json()
+    expect(doc.openapi).toBe('3.0.3')
     expect(doc.info.title).toBe('Essential CRM API')
-    const responses = doc.paths['/api/v1/companies/{id}'].get.responses
-    expect(Object.keys(responses)).toEqual(
-      expect.arrayContaining(['200', '401', '404', '422', '429', '500']),
-    )
+    expect(doc.tags.map((t: { name: string }) => t.name)).toEqual([
+      'Auth',
+      'Companies',
+      'Contacts',
+      'Leads',
+      'Deals',
+      'Imports',
+      'Exports',
+      'System',
+    ])
+    expect(
+      Object.keys(doc.paths['/api/v1/companies/{id}'].get.responses),
+    ).toEqual(['200', '401', '404', '429', '500'])
+    expect(doc.paths['/api/v1/companies'].get.responses['422']).toBeDefined()
+    expect(doc.paths['/api/v1/companies'].post.security).toEqual([
+      { sessionCookie: [] },
+    ])
+    expect(doc.components.schemas.Error).toBeDefined()
   })
 })
