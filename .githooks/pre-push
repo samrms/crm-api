@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+cd "$(dirname "$0")/.."
+echo "Pre-push: running checks..."
+bun run check || exit 1
+echo "Pre-push: OK"
