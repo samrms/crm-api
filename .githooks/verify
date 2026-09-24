@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# The push gate: every CI job, in the order CI runs them.
+#   quality -> lint, typecheck, format check
+#   tests   -> full suite
+#   build   -> clean compile to dist/
+#   image   -> pre:docker (build the image, boot it, require /health)
+#
+# This is what `bun run pre:push` runs, and what the git hook .githooks/pre-push
+# runs, so the hook and the script cannot drift apart.
+set -Eeuo pipefail
+cd "$(dirname "$0")/.."
+# shellcheck source=.githooks/lib.sh
+. .githooks/lib.sh
+
+log "workflow drift (ci.yml vs package.json)"
+bun run ci:check
+
+log "lint, typecheck, format check"
+bun run check
+
+log "tests"
+bun run test
+
+log "build"
+bun run build
+
+# The image steps need network and a Docker daemon. Without a daemon they are
+# skipped with a warning; CI remains the authority on them.
+if ! docker info > /dev/null 2>&1; then
+  warn "docker unavailable - skipped pre:docker"
+  exit 0
+fi
+
+bun run pre:docker
