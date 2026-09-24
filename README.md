@@ -60,7 +60,7 @@ bun run docker:up         # postgres, redis, api
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run db:migrate:status` | read-only: applied vs pending migrations |
-| `bun run prepush` / `predeploy` | the git gates, run by hand |
+| `bun run pre:push` / `pre:deploy` | the git gates, run by hand |
 | `bun run smoke` | boot `crm-api:local` and require `/health` |
 | `bun run seed` | load demo data |
 | `bun run docker:up` / `down` / `logs` | local Postgres + Redis + API |

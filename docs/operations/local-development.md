@@ -66,7 +66,7 @@ If 5432, 6379, or 3000 are already in use, override the host ports in `.env`
 | `bun run db:migrate:up` | apply pending migrations |
 | `bun run db:migrate:down` | roll back the last migration |
 | `bun run db:migrate:status` | read-only: applied vs pending migrations |
-| `bun run prepush` / `predeploy` | the gates below, run by hand |
+| `bun run pre:push` / `pre:deploy` | the gates below, run by hand |
 | `bun run smoke` | boot `crm-api:local` and require `/health` |
 | `bun run db:reset` | down + up (destructive) |
 | `bun run seed` | load deterministic demo data |
