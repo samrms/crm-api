@@ -39,4 +39,30 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: docker build --tag crm-api:${{ github.sha }} .
+      - run: docker build --file docker/Dockerfile --tag crm-api:${{ github.sha }} .
+
+      # Building the image is not enough: an image can compile and still fail
+      # to boot (e.g. unresolved path aliases at runtime). Boot it against
+      # in-memory SQLite and require a healthy response.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name crm-smoke \
+            -p 3000:3000 \
+            -e DATABASE_URL=sqlite:// \
+            -e SESSION_SECRET=ci-smoke-secret-not-for-production \
+            crm-api:${{ github.sha }}
+
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              echo "container is healthy"
+              docker logs crm-smoke
+              docker rm -f crm-smoke
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "container never became healthy:"
+          docker logs crm-smoke
+          docker rm -f crm-smoke
+          exit 1

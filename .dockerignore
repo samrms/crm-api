@@ -5,6 +5,10 @@ storage
 .env
 .env.*
 .git
+.github
 .husky
 *.log
 tests
+docs
+docker-compose.yml
+Dockerfile

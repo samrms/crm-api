@@ -15,6 +15,9 @@ FROM base AS production
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# src/ is required at runtime: Bun resolves the @/* tsconfig path aliases from
+# source, and `bun run db:migrate` executes src/shared/database/migrate.ts.
+COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY package.json ./
 RUN groupadd --gid 1001 appgroup && \
