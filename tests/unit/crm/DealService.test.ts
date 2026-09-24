@@ -28,7 +28,9 @@ describe('DealService', () => {
 
   it('rejects advancing to the current stage with a conflict', async () => {
     const service = new DealService(
-      dealRepo({ findById: vi.fn().mockResolvedValue(dealRow({ stage: 'PROPOSAL' })) }),
+      dealRepo({
+        findById: vi.fn().mockResolvedValue(dealRow({ stage: 'PROPOSAL' })),
+      }),
     )
     await expect(
       service.advance('dl_1', 'org_1', 'PROPOSAL'),

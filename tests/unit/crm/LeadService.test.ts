@@ -44,7 +44,9 @@ describe('LeadService', () => {
   it('rejects qualifying terminal leads', async () => {
     const service = new LeadService(
       leadRepo({
-        findById: vi.fn().mockResolvedValue(leadRow({ status: 'DISQUALIFIED' })),
+        findById: vi
+          .fn()
+          .mockResolvedValue(leadRow({ status: 'DISQUALIFIED' })),
       }),
     )
     await expect(service.qualify('ld_1', 'org_1')).rejects.toMatchObject({

@@ -18,7 +18,9 @@ import type {
 
 const now = () => new Date()
 
-export const companyRow = (overrides: Partial<CompanyRow> = {}): CompanyRow => ({
+export const companyRow = (
+  overrides: Partial<CompanyRow> = {},
+): CompanyRow => ({
   id: 'co_1',
   organization_id: 'org_1',
   name: 'Acme',
@@ -33,7 +35,9 @@ export const companyRow = (overrides: Partial<CompanyRow> = {}): CompanyRow => (
   ...overrides,
 })
 
-export const contactRow = (overrides: Partial<ContactRow> = {}): ContactRow => ({
+export const contactRow = (
+  overrides: Partial<ContactRow> = {},
+): ContactRow => ({
   id: 'ct_1',
   organization_id: 'org_1',
   company_id: null,
